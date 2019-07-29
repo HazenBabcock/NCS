@@ -181,8 +181,16 @@ class NCSCSubRegion(object):
         self.alpha = alpha
         
         opts = {'disp' : verbose, 'maxiter' : 200}
+
+        # Bound to positive values so that we don't get NANs when
+        # calculating the log likelihood.
+        lb = numpy.zeros(self.image.size)
+        ub = numpy.ones(self.image.size) * numpy.inf
+        bounds = scipy.optimize.Bounds(lb, ub)
+         
         outi = scipy.optimize.minimize(self.calcCost,
                                        self.image,
+                                       bounds = bounds,
                                        jac = self.calcCostGradient,
                                        method='L-BFGS-B',
                                        options=opts)
