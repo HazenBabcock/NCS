@@ -2,6 +2,13 @@
  * C library for "Noise Correction Algorithm for sCMOS cameras".
  *
  * Note: We assume that lbfgsfloat_val is a double.
+ *
+ * FIXME: This has no guard against negative values for u, which
+ *        can lead to NANs when calculating the log likelihood.
+ *        Unfortunately the L-BFGS library doesn't handle bounds
+ *        and adding a hard limit in ncsSRCalcLogLikelihood() seems 
+ *        to mess up the solver.
+ *
  * 
  * Hazen 04/19
  */
