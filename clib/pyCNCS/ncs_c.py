@@ -109,8 +109,9 @@ class NCSCSubRegion(object):
         return ncs.ncsSRCalcNoiseContribution(self.c_ncs)
 
     def cleanup(self):
-        ncs.ncsSRCleanup(self.c_ncs)
-        self.c_ncs = None
+        if self.c_ncs is not None:
+            ncs.ncsSRCleanup(self.c_ncs)
+            self.c_ncs = None
 
     def cSolve(self, alpha, verbose = True):
         ret = ncs.ncsSRSolve(self.c_ncs, alpha, verbose)
