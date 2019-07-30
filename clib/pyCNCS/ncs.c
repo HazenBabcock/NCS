@@ -1,8 +1,12 @@
 /* 
  * C library for "Noise Correction Algorithm for sCMOS cameras".
  *
- * Note: We assume that lbfgsfloat_val is a double.
- * 
+ * Notes: 
+ *  1. We assume that lbfgsfloat_val is a double.
+ *  2. The input image should be corrected for gain and offset and
+ *     also have had any negative values removed. For example any
+ *     values less than 1.0 are set to 1.0.
+ *
  * Hazen 04/19
  */
 
