@@ -4,6 +4,38 @@
  * Hazen 07/19
  */
 
+/* Threshold for handling negative values in the fit. */
+#define FITMIN 1.0e-6
+
+/* The problem size is (16*16)/4 or 256/4. */
+#define PSIZE 64
+
+void calcLLGradient(float4 *u, float4 *data, float4 *gamma, float4 *gradient)
+{
+    float4 t1;
+    float4 t2;
+
+    for(int i=0; i<PSIZE; i++){
+        t1 = data[i] + gamma[i];
+        t2 = fmax(u[i] + gamma[i], FITMIN);
+        gradient[i] = 1.0f - t1/t2;
+    }
+}
+
+float calcLogLikelihood(float4 *u, float4 *data, float4 *gamma)
+{
+    float4 sum = (float4)(0.0, 0.0, 0.0, 0.0);
+    float4 t1;
+    float4 t2;
+
+    for(int i=0; i<PSIZE; i++){
+        t1 = data[i] + gamma[i];
+        t2 = log(fmax(u[i] + gamma[i], FITMIN));
+        sum += u[i] - t1*t2;
+    }
+    
+    return sum.s0 + sum.s1 + sum.s2 + sum.s3;
+}
 
 // 4 point complex FFT
 void fft4(float4 x_r, float4 x_c, float4 *y_r, float4 *y_c)
