@@ -7,35 +7,19 @@
 /* Threshold for handling negative values in the fit. */
 #define FITMIN 1.0e-6
 
-/* The problem size is (16*16)/4 or 256/4. */
+/*
+ * The problem size is (16*16)/4 or 256/4.
+ *
+ * This is changeable to make easier at some point in the future
+ * to use a different ROI size. However this would also involve writing
+ * the appropriate 2D FFT.
+ */ 
 #define PSIZE 64
 
-void calcLLGradient(float4 *u, float4 *data, float4 *gamma, float4 *gradient)
-{
-    float4 t1;
-    float4 t2;
 
-    for(int i=0; i<PSIZE; i++){
-        t1 = data[i] + gamma[i];
-        t2 = fmax(u[i] + gamma[i], FITMIN);
-        gradient[i] = 1.0f - t1/t2;
-    }
-}
-
-float calcLogLikelihood(float4 *u, float4 *data, float4 *gamma)
-{
-    float4 sum = (float4)(0.0, 0.0, 0.0, 0.0);
-    float4 t1;
-    float4 t2;
-
-    for(int i=0; i<PSIZE; i++){
-        t1 = data[i] + gamma[i];
-        t2 = log(fmax(u[i] + gamma[i], FITMIN));
-        sum += u[i] - t1*t2;
-    }
-    
-    return sum.s0 + sum.s1 + sum.s2 + sum.s3;
-}
+/****************
+ * FFT functions.
+ ****************/
 
 // 4 point complex FFT
 void fft4(float4 x_r, float4 x_c, float4 *y_r, float4 *y_c)
@@ -334,4 +318,121 @@ void ifft_16x16(float4 *x_r, float4 *x_c, float4 *y_r, float4 *y_c)
     for(int i=0; i<16; i++){
         ifft16(&(y_r[i*4]), &(y_c[i*4]), &(y_r[i*4]), &(y_c[i*4]));
     }     
+}
+
+
+/****************
+ * NCS functions.
+ ****************/
+
+void calcLLGradient(float4 *u, float4 *data, float4 *gamma, float4 *gradient)
+{
+    float4 t1;
+    float4 t2;
+
+    for(int i=0; i<PSIZE; i++){
+        t1 = data[i] + gamma[i];
+        t2 = fmax(u[i] + gamma[i], FITMIN);
+        gradient[i] = 1.0f - t1/t2;
+    }
+}
+
+float calcLogLikelihood(float4 *u, float4 *data, float4 *gamma)
+{
+    float4 sum = (float4)(0.0, 0.0, 0.0, 0.0);
+    float4 t1;
+    float4 t2;
+
+    for(int i=0; i<PSIZE; i++){
+        t1 = data[i] + gamma[i];
+        t2 = log(fmax(u[i] + gamma[i], FITMIN));
+        sum += u[i] - t1*t2;
+    }
+    
+    return sum.s0 + sum.s1 + sum.s2 + sum.s3;
+}
+
+void calcNCGradient(__global float4 *u_fft_grad_r,
+                    __global float4 *u_fft_grad_c,
+                    float4 *u_r, 
+                    float4 *u_c, 
+                    float4 *otf_mask_sqr,
+                    float4 *gradient)
+{
+    float sum;
+    float4 t1;
+
+    float4 y_r[PSIZE];
+    float4 y_c[PSIZE];
+    
+    __global float4 *ft_r = (__global float4 *)u_fft_grad_r;
+    __global float4 *ft_c = (__global float4 *)u_fft_grad_c;
+
+    float *g = (float *)gradient;
+
+    fft_16x16(u_r, u_c, y_r, y_c);
+
+    for(int i=0; i<(PSIZE*4); i++){
+        int offset = i*PSIZE;
+
+        sum = 0.0f;
+        for(int j=0; j<PSIZE; j++){
+            t1 = y_r[j]*ft_r[j+offset] + y_c[j]*ft_c[j+offset];
+            t1 = 2.0f*t1*otf_mask_sqr[j];
+            sum += t1.s0 + t1.s1 + t1.s2 + t1.s3;
+        }
+        g[i] = sum*(float)(1.0/(4.0*PSIZE));
+    }
+}
+
+float calcNoiseContribution(float4 *u_r, float4 *u_c, float4 *otf_mask_sqr)
+{
+    float sum;
+    float4 t1;
+
+    float4 y_r[PSIZE];
+    float4 y_c[PSIZE];
+    
+    fft_16x16(u_r, u_c, y_r, y_c);
+    for(int i=0; i<PSIZE; i++){
+        t1 = y_r[i]*y_r[i] + y_c[i]*y_c[i];
+        t1 = t1*otf_mask_sqr[i];
+        sum += t1.s0 + t1.s1 + t1.s2 + t1.s3;
+    }
+
+    return sum*(float)(1.0/(4.0*PSIZE));
+}
+
+
+/****************
+ * Kernels.
+ ****************/
+
+__kernel void initUFFTGrad(__global float4 *u_fft_grad_r,
+                           __global float4 *u_fft_grad_c)
+{
+    float4 x_r[PSIZE];
+    float4 x_c[PSIZE];
+    float4 y_r[PSIZE];
+    float4 y_c[PSIZE];
+    
+    for(int i=0; i<PSIZE; i++){
+        x_r[i] = (float4)(0.0, 0.0, 0.0, 0.0);
+        x_c[i] = (float4)(0.0, 0.0, 0.0, 0.0);
+    }
+    
+    float *x = (float *)x_r;
+    
+    for(int i=0; i<(4*PSIZE); i++){
+           
+        x[i] = 1.0f;
+        fft_16x16(x_r, x_c, y_r, y_c);
+
+        int offset = i*PSIZE;
+        for(int j=0; j<PSIZE; j++){
+            u_fft_grad_r[offset+j] = y_r[j];
+            u_fft_grad_c[offset+j] = y_c[j];
+        }
+        x[i] = 0.0f;
+    }
 }
