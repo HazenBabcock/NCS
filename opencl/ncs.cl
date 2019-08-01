@@ -16,6 +16,12 @@
  */ 
 #define PSIZE 64
 
+/* L-BFGS solver parameters. */
+
+#define C_1 1.0e-4f
+#define EPSILON 1.0e-5f
+#define MAXITERS 200
+
 
 /****************
  * FFT functions.
@@ -321,6 +327,65 @@ void ifft_16x16(float4 *x_r, float4 *x_c, float4 *y_r, float4 *y_c)
 }
 
 
+/******************
+ * Vector functions.
+ ******************/
+
+void veccopy(float4 *v1, float4 *v2)
+{
+    for(int i=0; i<PSIZE; i++){
+        v1[i] = v2[i];
+    }
+}
+
+float vecdot(float4 *v1, float4 *v2)
+{
+    float sum = 0;
+    
+    for(int i=0; i<PSIZE; i++){
+        sum += dot(v1[i], v2[i]);
+    }
+    return sum;
+}
+
+/* v1 = v2 * s1 + v3 */
+void vecfma(float4 *v1, float4 *v2, float4 *v3, float s1)
+{
+    float4 t1 = (float4)(s1, s1, s1, s1);
+    for(int i=0; i<PSIZE; i++){
+        v1[i] = fma(t1, v2[i], v3[i]);
+    }
+}
+
+/* v1 = v1 + v2 * s1 */
+void vecfmaInplace(float4 *v1, float4 *v2, float s1)
+{
+    float4 t1 = (float4)(s1, s1, s1, s1);
+    for(int i=0; i<PSIZE; i++){
+        v1[i] = fma(t1, v2[i], v1[i]);
+    }
+}
+
+void vecmul(float4 *v1, float4 *v2, float4 *v3)
+{
+    for(int i=0; i<PSIZE; i++){
+        v1[i] = v2[i]*v3[i];
+    }
+}
+
+float vecnorm(float4 *v1)
+{
+    return sqrt(vecdot(v1, v1));
+}
+
+void vecsub(float4 *v1, float4 *v2, float4 *v3)
+{
+    for(int i=0; i<PSIZE; i++){
+        v1[i] = v2[i] - v3[i];
+    }
+}
+
+
 /****************
  * NCS functions.
  ****************/
@@ -392,6 +457,23 @@ float calcNoiseContribution(float4 *u_fft_r, float4 *u_fft_c, float4 *otf_mask_s
     }
 
     return sum*(float)(1.0/(4.0*PSIZE));
+}
+
+
+/******************
+ * L-BFGS functions.
+ ******************/
+
+int converged(float4 *x, float4 *g)
+{
+    float xnorm = fmax(vecnorm(x), 1.0);
+    float gnorm = vecnorm(g);
+    if ((gnorm/xnorm) > EPSILON){
+        return 0;
+    }
+    else{
+        return 1;
+    }
 }
 
 
