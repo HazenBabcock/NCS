@@ -20,6 +20,8 @@ __kernel void calc_nc_test(__global float4 *g_u,
                            __global float4 *g_otf_mask, 
                            __global float *g_sum)
 {
+    float4 u_fft_r[PSIZE];
+    float4 u_fft_c[PSIZE];
     float4 u_r[PSIZE];
     float4 u_c[PSIZE];
     float4 otf_mask_sqr[PSIZE];
@@ -29,8 +31,9 @@ __kernel void calc_nc_test(__global float4 *g_u,
         u_c[i] = (float4)(0.0, 0.0, 0.0, 0.0);
         otf_mask_sqr[i] = g_otf_mask[i]*g_otf_mask[i];
     }
-    
-    *g_sum = calcNoiseContribution(u_r, u_c, otf_mask_sqr);
+
+    fft_16x16(u_r, u_c, u_fft_r, u_fft_c);
+    *g_sum = calcNoiseContribution(u_fft_r, u_fft_c, otf_mask_sqr);
 }
 
 __kernel void calc_nc_grad_test(__global float4 *u_fft_grad_r,
@@ -39,6 +42,8 @@ __kernel void calc_nc_grad_test(__global float4 *u_fft_grad_r,
                                 __global float4 *g_otf_mask, 
                                 __global float4 *g_gradient)
 {
+    float4 u_fft_r[PSIZE];
+    float4 u_fft_c[PSIZE];
     float4 u_r[PSIZE];
     float4 u_c[PSIZE];
     float4 otf_mask_sqr[PSIZE];
@@ -49,8 +54,9 @@ __kernel void calc_nc_grad_test(__global float4 *u_fft_grad_r,
         u_c[i] = (float4)(0.0, 0.0, 0.0, 0.0);
         otf_mask_sqr[i] = g_otf_mask[i]*g_otf_mask[i];
     }
-    
-    calcNCGradient(u_fft_grad_r, u_fft_grad_c, u_r, u_c, otf_mask_sqr, gradient);
+
+    fft_16x16(u_r, u_c, u_fft_r, u_fft_c);
+    calcNCGradient(u_fft_grad_r, u_fft_grad_c, u_fft_r, u_fft_c, otf_mask_sqr, gradient);
 
     for(int i=0; i<PSIZE; i++){
         g_gradient[i] = gradient[i];

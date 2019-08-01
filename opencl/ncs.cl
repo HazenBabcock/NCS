@@ -354,30 +354,25 @@ float calcLogLikelihood(float4 *u, float4 *data, float4 *gamma)
 
 void calcNCGradient(__global float4 *u_fft_grad_r,
                     __global float4 *u_fft_grad_c,
-                    float4 *u_r, 
-                    float4 *u_c, 
+                    float4 *u_fft_r, 
+                    float4 *u_fft_c, 
                     float4 *otf_mask_sqr,
                     float4 *gradient)
 {
     float sum;
     float4 t1;
-
-    float4 y_r[PSIZE];
-    float4 y_c[PSIZE];
     
     __global float4 *ft_r = (__global float4 *)u_fft_grad_r;
     __global float4 *ft_c = (__global float4 *)u_fft_grad_c;
 
     float *g = (float *)gradient;
 
-    fft_16x16(u_r, u_c, y_r, y_c);
-
     for(int i=0; i<(PSIZE*4); i++){
         int offset = i*PSIZE;
 
         sum = 0.0f;
         for(int j=0; j<PSIZE; j++){
-            t1 = y_r[j]*ft_r[j+offset] + y_c[j]*ft_c[j+offset];
+            t1 = u_fft_r[j]*ft_r[j+offset] + u_fft_c[j]*ft_c[j+offset];
             t1 = 2.0f*t1*otf_mask_sqr[j];
             sum += t1.s0 + t1.s1 + t1.s2 + t1.s3;
         }
@@ -385,17 +380,13 @@ void calcNCGradient(__global float4 *u_fft_grad_r,
     }
 }
 
-float calcNoiseContribution(float4 *u_r, float4 *u_c, float4 *otf_mask_sqr)
+float calcNoiseContribution(float4 *u_fft_r, float4 *u_fft_c, float4 *otf_mask_sqr)
 {
     float sum;
     float4 t1;
-
-    float4 y_r[PSIZE];
-    float4 y_c[PSIZE];
     
-    fft_16x16(u_r, u_c, y_r, y_c);
     for(int i=0; i<PSIZE; i++){
-        t1 = y_r[i]*y_r[i] + y_c[i]*y_c[i];
+        t1 = u_fft_r[i]*u_fft_r[i] + u_fft_c[i]*u_fft_c[i];
         t1 = t1*otf_mask_sqr[i];
         sum += t1.s0 + t1.s1 + t1.s2 + t1.s3;
     }
