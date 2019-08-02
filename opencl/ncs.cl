@@ -338,6 +338,13 @@ void veccopy(float4 *v1, float4 *v2)
     }
 }
 
+void vecncopy(float4 *v1, float4 *v2)
+{
+    for(int i=0; i<PSIZE; i++){
+        v1[i] = -v2[i];
+    }
+}
+
 float vecdot(float4 *v1, float4 *v2)
 {
     float sum = 0;
@@ -376,6 +383,14 @@ void vecmul(float4 *v1, float4 *v2, float4 *v3)
 float vecnorm(float4 *v1)
 {
     return sqrt(vecdot(v1, v1));
+}
+
+void vecscaleInplace(float4 *v1, float s1)
+{
+    float4 t1 = (float4)(s1, s1, s1, s1);
+    for(int i=0; i<PSIZE; i++){
+        v1[i] = v1[i]*s1;
+    }
 }
 
 void vecsub(float4 *v1, float4 *v2, float4 *v3)

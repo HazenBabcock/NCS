@@ -28,6 +28,23 @@ __kernel void veccopy_test(__global float4 *g_v1,
     }
 }
 
+__kernel void vecncopy_test(__global float4 *g_v1,
+                            __global float4 *g_v2)
+{
+    float4 v1[PSIZE];
+    float4 v2[PSIZE];
+    
+    for(int i=0; i<PSIZE; i++){
+        v2[i] = g_v2[i];
+    }
+    
+    vecncopy(v1, v2);
+
+    for(int i=0; i<PSIZE; i++){
+        g_v1[i] = v1[i];
+    }
+}
+
 __kernel void vecdot_test(__global float4 *g_v1,
                           __global float4 *g_v2,
                           __global float *g_sum)
@@ -115,6 +132,22 @@ __kernel void vecnorm_test(__global float4 *g_v1,
     *g_norm = vecnorm(v1);
 }
 
+__kernel void vecscaleInplace_test(__global float4 *g_v1,
+                                   float scale)
+{
+    float4 v1[PSIZE];
+
+    for(int i=0; i<PSIZE; i++){
+        v1[i] = g_v1[i];
+    }
+
+    vecscaleInplace(v1, scale);
+
+    for(int i=0; i<PSIZE; i++){
+        g_v1[i] = v1[i];
+    }
+}
+
 __kernel void vecsub_test(__global float4 *g_v1,
                           __global float4 *g_v2,
                           __global float4 *g_v3)
@@ -173,6 +206,19 @@ def test_veccopy():
    queue.finish()
    
    assert numpy.allclose(v1, v2)
+
+def test_vecncopy():
+   v1 = numpy.zeros(n_pts, dtype = numpy.float32)
+   v2 = numpy.random.uniform(low = 1.0, high = 10.0, size = n_pts).astype(dtype = numpy.float32)
+
+   v1_buffer = cl.Buffer(context, cl.mem_flags.WRITE_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf = v1)
+   v2_buffer = cl.Buffer(context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf = v2)
+
+   program.vecncopy_test(queue, (1,), (1,), v1_buffer, v2_buffer)
+   cl.enqueue_copy(queue, v1, v1_buffer).wait()
+   queue.finish()
+   
+   assert numpy.allclose(v1, -v2)
 
 def test_vecdot():
    v1 = numpy.random.uniform(low = 1.0, high = 10.0, size = n_pts).astype(dtype = numpy.float32)
@@ -248,6 +294,20 @@ def test_vecnorm():
    queue.finish()
    
    assert numpy.allclose(v2, numpy.linalg.norm(v1))
+   
+def test_vecscaleInplace():
+   v1 = numpy.random.uniform(low = 1.0, high = 10.0, size = n_pts).astype(dtype = numpy.float32)
+   v2 = numpy.float32(0.5)
+
+   v3 = numpy.copy(v1)*v2
+   
+   v1_buffer = cl.Buffer(context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf = v1)
+
+   program.vecscaleInplace_test(queue, (1,), (1,), v1_buffer, v2)
+   cl.enqueue_copy(queue, v1, v1_buffer).wait()
+   queue.finish()
+   
+   assert numpy.allclose(v1, v3)
 
 def test_vecsub():
    v1 = numpy.zeros(n_pts, dtype = numpy.float32)
