@@ -52,6 +52,9 @@ def vecncopy(v1, v2):
 def vecdot(v1, v2):
     return numpy.sum(v1 * v2)
 
+def vecisEqual(v1, v2):
+    return numpy.array_equal(v1, v2)
+
 def vecfma(v1, v2, v3, s1):
     v1[:] = v2*s1 + v3
 

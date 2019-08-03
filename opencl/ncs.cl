@@ -355,6 +355,16 @@ float vecdot(float4 *v1, float4 *v2)
     return sum;
 }
 
+int vecisEqual(float4 *v1, float4 *v2)
+{
+    for(int i=0; i<PSIZE; i++){
+    	if (all(isnotequal(v1[i], v2[i]))){
+	   return 0;
+	}
+    }
+    return 1; 
+}
+
 /* v1 = v2 * s1 + v3 */
 void vecfma(float4 *v1, float4 *v2, float4 *v3, float s1)
 {

@@ -62,6 +62,21 @@ __kernel void vecdot_test(__global float4 *g_v1,
     *g_sum = vecdot(v1, v2);
 }
 
+__kernel void vecisEqual_test(__global float4 *g_v1,
+                              __global float4 *g_v2,
+                              __global int *g_eq)
+{
+    float4 v1[PSIZE];
+    float4 v2[PSIZE];
+    
+    for(int i=0; i<PSIZE; i++){
+        v1[i] = g_v1[i];
+        v2[i] = g_v2[i];
+    }
+    
+    *g_eq = vecisEqual(v1, v2);
+}
+
 __kernel void vecfma_test(__global float4 *g_v1,
                           __global float4 *g_v2,
                           __global float4 *g_v3,
@@ -254,6 +269,48 @@ def test_vecdot():
 
    v3_c = pyRef.vecdot(v1_c, v2_c)
    assert numpy.allclose(v3, numpy.sum(v1*v2))
+
+def test_vecisEqual_1():
+   v1 = numpy.random.uniform(low = 1.0, high = 10.0, size = n_pts).astype(dtype = numpy.float32)
+   v2 = numpy.random.uniform(low = 1.0, high = 10.0, size = n_pts).astype(dtype = numpy.float32)
+   v3 = numpy.zeros(1).astype(numpy.int32)
+
+   v1_c = numpy.copy(v1)
+   v2_c = numpy.copy(v2)
+
+   v1_buffer = cl.Buffer(context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf = v1)
+   v2_buffer = cl.Buffer(context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf = v2)
+   v3_buffer = cl.Buffer(context, cl.mem_flags.WRITE_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf = v3)
+   
+   program.vecisEqual_test(queue, (1,), (1,), v1_buffer, v2_buffer, v3_buffer)
+   cl.enqueue_copy(queue, v3, v3_buffer).wait()
+   queue.finish()
+
+   assert (v3[0] == 0)
+
+   v3_c = pyRef.vecisEqual(v1_c, v2_c)
+   assert (v3_c == 0)
+   
+def test_vecisEqual_2():
+   v1 = numpy.random.uniform(low = 1.0, high = 10.0, size = n_pts).astype(dtype = numpy.float32)
+   v2 = numpy.copy(v1)
+   v3 = numpy.zeros(1).astype(numpy.int32)
+
+   v1_c = numpy.copy(v1)
+   v2_c = numpy.copy(v2)
+
+   v1_buffer = cl.Buffer(context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf = v1)
+   v2_buffer = cl.Buffer(context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf = v2)
+   v3_buffer = cl.Buffer(context, cl.mem_flags.WRITE_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf = v3)
+   
+   program.vecisEqual_test(queue, (1,), (1,), v1_buffer, v2_buffer, v3_buffer)
+   cl.enqueue_copy(queue, v3, v3_buffer).wait()
+   queue.finish()
+
+   assert (v3[0] == 1)
+
+   v3_c = pyRef.vecisEqual(v1_c, v2_c)
+   assert (v3_c == 1)
    
 def test_vecfma():
    v1 = numpy.zeros(n_pts, dtype = numpy.float32)
