@@ -1,7 +1,41 @@
 /*
  * OpenCL kernel code for NCS.
  *
- * Hazen 07/19
+ * Key resources that I used in this implementation:
+ *
+ * 1) The book "OpenCL In Action" by Matthew Scarpino.
+ * 2) The C port of L-BFGS by Naoaki Okazaki (http://www.chokkan.org/software/liblbfgs/).
+ * 3) Inexact line search conditions (https://en.wikipedia.org/wiki/Wolfe_conditions).
+ *
+ * Hazen 08/19
+ */
+
+/*
+ * License for the Limited memory BFGS (L-BFGS) solver code.
+ *
+ * Limited memory BFGS (L-BFGS).
+ *
+ * Copyright (c) 1990, Jorge Nocedal
+ * Copyright (c) 2007-2010 Naoaki Okazaki
+ * All rights reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
  */
 
 /* Threshold for handling negative values in the fit. */
@@ -18,9 +52,20 @@
 
 /* L-BFGS solver parameters. */
 
-#define C_1 1.0e-4f
-#define EPSILON 1.0e-5f
-#define MAXITERS 200
+#define C_1 1.0e-4f        /* Armijo rule/condition scaling value. */
+#define EPSILON 1.0e-4f    /* Stopping point. */
+#define M 8                /* Number of history points saved. */
+#define MAXITERS 200       /* Maximum number of iterations. */
+#define MIN_STEP 1.0e-6f   /* Minimum step size. */
+#define STEPM 0.5          /* Step size multiplier. */
+
+/* Error status codes. */
+#define SUCCESS 0
+#define UNSTARTED -1
+#define REACHED_MAXITERS -2
+#define INCREASING_GRADIENT -3
+#define MINIMUM_STEP -4
+#define REACHED_MAXPRECISION -5
 
 
 /****************
@@ -534,3 +579,216 @@ __kernel void initUFFTGrad(__global float4 *u_fft_grad_r,
         x[i] = 0.0f;
     }
 }
+
+/*
+ * FIXME: I wanted to use structs to avoid having to pass lots 
+ *        arguments to each function but I couldn't get this to
+ *        work. It would hang on the program.build() step.
+ */
+__kernel void ncsReduceNoise(__global float4 *u_fft_grad_r,
+                             __global float4 *u_fft_grad_c,
+                             __global float4 *data_in,
+                             __global float4 *g_gamma,
+                             __global float4 *otf_mask,
+                             __global float4 *data_out,
+                             __global int *iterations,
+                             __global int *status,
+                             float alpha)
+{
+    int g_id = get_global_id(0);
+    status[g_id] = UNSTARTED;
+    int offset = g_id*PSIZE;
+
+    /* Variables. */
+    int i,j,k;
+    int bound;
+    int ci;
+    
+    float beta;
+    float cost;
+    float cost_p;
+    float step;
+    float ys_c0;
+    float yy;
+    
+    float a[M];
+    float ys[M];
+    
+    float4 data[PSIZE];
+    float4 gamma[PSIZE];
+    float4 g_p[PSIZE];
+    float4 gradient[PSIZE];
+    float4 otf_mask_sqr[PSIZE];
+    float4 srch_dir[PSIZE];
+    float4 u_r[PSIZE]; 
+    float4 u_c[PSIZE];
+    float4 u_fft_r[PSIZE]; 
+    float4 u_fft_c[PSIZE];
+    float4 u_p[PSIZE];
+    float4 work1[PSIZE];
+    
+    float4 s[M][PSIZE];
+    float4 y[M][PSIZE];
+
+    /* Initialization. */    
+    for (i=0; i<PSIZE; i++){
+        data[i] = data_in[i + offset];
+        gamma[i] = g_gamma[i];
+        otf_mask_sqr[i] = otf_mask[i] * otf_mask[i];
+        u_r[i] = data_in[i + offset];
+        u_c[i] = (float4)(0.0, 0.0, 0.0, 0.0);
+    }
+    
+    /* Calculate initial state. */
+    fft_16x16(u_r, u_c, u_fft_r, u_fft_c);
+    
+    /* Cost. */
+    cost = calcLogLikelihood(u_r, data, gamma);
+    cost += alpha * calcNoiseContribution(u_fft_r, u_fft_c, otf_mask_sqr);
+    
+    /* Gradient. */
+    calcLLGradient(u_r, data, gamma, gradient);
+    calcNCGradient(u_fft_grad_r, u_fft_grad_c, u_fft_r, u_fft_c, otf_mask_sqr, work1);
+    vecfmaInplace(gradient, work1, alpha);
+
+    /* Check if we've already converged. */
+    if (converged(u_r, gradient)){
+        for (i=0; i<PSIZE; i++){
+            data_out[i + offset] = u_r[i];
+        }
+        iterations[g_id] = 1;
+        status[g_id] = SUCCESS;
+        return;
+    }
+    
+    /* Initial search direction. */
+    step = 1.0/vecnorm(gradient);
+    vecncopy(srch_dir, gradient);
+
+    /* Start search. */
+    for (k=1; k<(MAXITERS+1); k++){
+    
+        /* 
+         * Line search. 
+         *
+         * This checks the Armijo rule/condition.
+         * https://en.wikipedia.org/wiki/Wolfe_conditions
+         */
+        float t1 = C_1 * vecdot(srch_dir, gradient);
+         
+        if (t1 > 0.0){
+            /* Increasing gradient. Minimization failed. */
+            for (i=0; i<PSIZE; i++){
+                data_out[i + offset] = u_r[i];
+            }
+            iterations[g_id] = k+1;
+            status[g_id] = INCREASING_GRADIENT;
+            return;
+        }
+        
+        /* Store current cost, u and gradient. */
+        cost_p = cost;
+        veccopy(u_p, u_r);
+        veccopy(g_p, gradient);
+
+	/* Search for a good step size. */        
+        int searching = 1;
+        while(searching){
+        
+            /* Move in search direction. */
+            vecfma(u_r, srch_dir, u_p, step);
+            
+            /* Calculate new cost. */
+            fft_16x16(u_r, u_c, u_fft_r, u_fft_c);
+            cost = calcLogLikelihood(u_r, data, gamma);
+            cost += alpha * calcNoiseContribution(u_fft_r, u_fft_c, otf_mask_sqr);
+            
+            /* Armijo condition. */
+            if (cost <= (cost_p + t1*step)){
+                searching = 0;
+            }
+            else{
+                step = STEPM*step;
+                if (step < MIN_STEP){
+                    /* 
+                     * Reached minimum step size. Minimization failed. 
+                     * Return the last good u values.
+                     */
+                    for (i=0; i<PSIZE; i++){
+                        // data_out[i + offset] = u_p[i];
+                        data_out[i + offset] = srch_dir[i];
+
+                    }
+                    iterations[g_id] = k+1;
+                    status[g_id] = MINIMUM_STEP;
+                    return;
+                }
+            }
+        }
+        
+        /* Calculate new gradient. */
+        calcLLGradient(u_r, data, gamma, gradient);
+        calcNCGradient(u_fft_grad_r, u_fft_grad_c, u_fft_r, u_fft_c, otf_mask_sqr, work1);
+        vecfmaInplace(gradient, work1, alpha);        
+
+        /* Convergence check. */
+        if (converged(u_r, gradient)){
+            for (i=0; i<PSIZE; i++){
+                data_out[i + offset] = u_r[i];
+            }
+            iterations[g_id] = k+1;
+            status[g_id] = SUCCESS;
+            return;
+        }
+        
+        /*
+	 * Machine precision check.
+	 *
+	 * This is probably not an actual failure, we just ran out of digits. Reaching
+	 * this state has a cost so we want to know if this is happening a lot.
+	 */
+        if (vecisEqual(u_r, u_p)){
+            for (i=0; i<PSIZE; i++){
+                data_out[i + offset] = u_r[i];
+            }
+            iterations[g_id] = k+1;
+            status[g_id] = REACHED_MAXPRECISION;
+            return;
+        }
+        
+        /* L-BFGS calculation of new search direction. */
+        ci = (k-1)%M;
+        vecsub(s[ci], u_r, u_p);
+        vecsub(y[ci], gradient, g_p);
+        
+        ys_c0 = vecdot(s[ci], y[ci]);
+        ys[ci] = 1.0/ys_c0;
+        yy = 1.0/vecdot(y[ci], y[ci]);
+        
+        vecncopy(srch_dir, gradient);
+        bound = min(k, M);
+        for(j=0; j<bound; j++){
+            ci = (k - j - 1)%M;
+            a[ci] = vecdot(s[ci], srch_dir)*ys[ci];
+            vecfmaInplace(srch_dir, y[ci], -a[ci]);
+        }
+        
+        vecscaleInplace(srch_dir, ys_c0*yy);
+        
+        for(j=0; j<bound; j++){
+            ci = (k + j - bound)%M;
+            beta = vecdot(y[ci], srch_dir)*ys[ci];
+            vecfmaInplace(srch_dir, s[ci], (a[ci] - beta));
+        }
+        
+        step = 1.0;
+    }
+    
+    /* Reached maximum iterations. Minimization failed. */
+    for (i=0; i<PSIZE; i++){
+        data_out[i + offset] = u_r[i];
+    }
+    iterations[g_id] = MAXITERS;
+    status[g_id] = REACHED_MAXITERS;
+}
+
