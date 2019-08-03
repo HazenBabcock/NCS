@@ -8,6 +8,7 @@ import numpy
 import pyopencl as cl
 
 import pyOpenCLNCS
+import pyOpenCLNCS.py_ref as pyRef
 
 kernel_code = """
 __kernel void fft4_test(__global float4 *x_r, __global float4 *x_c, __global float4 *y_r, __global float4 *y_c) {
@@ -224,55 +225,81 @@ except:
 
 
 def npts_fft(kernel, py_fft, n_pts):
-    x_r = numpy.random.uniform(size = n_pts).astype(dtype = numpy.float32)
-    x_c = numpy.random.uniform(size = n_pts).astype(dtype = numpy.float32)
+   x_r = numpy.random.uniform(size = n_pts).astype(dtype = numpy.float32)
+   x_c = numpy.random.uniform(size = n_pts).astype(dtype = numpy.float32)
 
-    y_r = numpy.zeros_like(x_r)
-    y_c = numpy.zeros_like(x_c)
+   y_r = numpy.zeros_like(x_r)
+   y_c = numpy.zeros_like(x_c)
 
-    x_r_buffer = cl.Buffer(context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf = x_r)
-    x_c_buffer = cl.Buffer(context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf = x_c)
+   x_r_buffer = cl.Buffer(context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf = x_r)
+   x_c_buffer = cl.Buffer(context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf = x_c)
     
-    y_r_buffer = cl.Buffer(context, cl.mem_flags.WRITE_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf = y_r)
-    y_c_buffer = cl.Buffer(context, cl.mem_flags.WRITE_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf = y_c)
+   y_r_buffer = cl.Buffer(context, cl.mem_flags.WRITE_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf = y_r)
+   y_c_buffer = cl.Buffer(context, cl.mem_flags.WRITE_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf = y_c)
     
-    kernel(queue, (1,), (1,), x_r_buffer, x_c_buffer, y_r_buffer, y_c_buffer)
-    cl.enqueue_copy(queue, y_r, y_r_buffer).wait()
-    cl.enqueue_copy(queue, y_c, y_c_buffer).wait()
-    queue.finish()
+   kernel(queue, (1,), (1,), x_r_buffer, x_c_buffer, y_r_buffer, y_c_buffer)
+   cl.enqueue_copy(queue, y_r, y_r_buffer).wait()
+   cl.enqueue_copy(queue, y_c, y_c_buffer).wait()
+   queue.finish()
 
-    x_fft = py_fft(x_r + 1j * x_c)
-
-    assert(numpy.allclose(numpy.real(x_fft), y_r, atol = 1.0e-5))
-    assert(numpy.allclose(numpy.imag(x_fft), y_c, atol = 1.0e-5))
-
+   x_fft = py_fft(x_r + 1j * x_c)
+   
+   assert(numpy.allclose(numpy.real(x_fft), y_r, atol = 1.0e-5))
+   assert(numpy.allclose(numpy.imag(x_fft), y_c, atol = 1.0e-5))
+   
 
 def test_fft_4():
-    npts_fft(program.fft4_test, numpy.fft.fft, 4)
+   npts_fft(program.fft4_test, numpy.fft.fft, 4)
 
 def test_fft_8():
-    npts_fft(program.fft8_test, numpy.fft.fft, 8)
+   npts_fft(program.fft8_test, numpy.fft.fft, 8)
 
 def test_fft_16():
-    npts_fft(program.fft16_test, numpy.fft.fft, 16)
+   npts_fft(program.fft16_test, numpy.fft.fft, 16)
 
 def test_fft_16x16():
-    npts_fft(program.fft_16x16_test, numpy.fft.fft2, (16,16))
+   npts_fft(program.fft_16x16_test, numpy.fft.fft2, (16,16))
 
 def test_fft_16x16_inplace():
-    npts_fft(program.fft_16x16_inplace_test, numpy.fft.fft2, (16,16))
+   npts_fft(program.fft_16x16_inplace_test, numpy.fft.fft2, (16,16))
 
 def test_ifft_4():
-    npts_fft(program.ifft4_test, numpy.fft.ifft, 4)
+   npts_fft(program.ifft4_test, numpy.fft.ifft, 4)
 
 def test_ifft_8():
-    npts_fft(program.ifft8_test, numpy.fft.ifft, 8)
+   npts_fft(program.ifft8_test, numpy.fft.ifft, 8)
 
 def test_ifft_16():
-    npts_fft(program.ifft16_test, numpy.fft.ifft, 16)
+   npts_fft(program.ifft16_test, numpy.fft.ifft, 16)
 
 def test_ifft_16x16():
-    npts_fft(program.ifft_16x16_test, numpy.fft.ifft2, (16,16))
+   npts_fft(program.ifft_16x16_test, numpy.fft.ifft2, (16,16))
 
 def test_ifft_16x16_inplace():
-    npts_fft(program.ifft_16x16_inplace_test, numpy.fft.ifft2, (16,16))
+   npts_fft(program.ifft_16x16_inplace_test, numpy.fft.ifft2, (16,16))
+
+def test_py_ref_fft_16x16(): 
+   x_r = numpy.random.uniform(size = 256).astype(dtype = numpy.float32)
+   x_c = numpy.random.uniform(size = 256).astype(dtype = numpy.float32)
+                              
+   y_r = numpy.zeros_like(x_r)
+   y_c = numpy.zeros_like(x_c)
+    
+   y_r_c = numpy.zeros_like(x_r)
+   y_c_c = numpy.zeros_like(x_c)
+    
+   x_r_buffer = cl.Buffer(context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf = x_r)
+   x_c_buffer = cl.Buffer(context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf = x_c)
+    
+   y_r_buffer = cl.Buffer(context, cl.mem_flags.WRITE_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf = y_r)
+   y_c_buffer = cl.Buffer(context, cl.mem_flags.WRITE_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf = y_c)
+    
+   program.fft_16x16_test(queue, (1,), (1,), x_r_buffer, x_c_buffer, y_r_buffer, y_c_buffer)
+   cl.enqueue_copy(queue, y_r, y_r_buffer).wait()
+   cl.enqueue_copy(queue, y_c, y_c_buffer).wait()
+   queue.finish()
+
+   pyRef.fft_16x16(x_r, x_c, y_r_c, y_c_c)
+   
+   assert(numpy.allclose(y_r, y_r_c, atol = 1.0e-5))
+   assert(numpy.allclose(y_c, y_c_c, atol = 1.0e-5))
