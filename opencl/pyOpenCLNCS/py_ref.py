@@ -88,9 +88,8 @@ def calcLogLikelihood(u, data, gamma):
     return numpy.sum(u - t1*t2)
 
 def calcNCGradient(u_fft_grad_r, u_fft_grad_c, u_fft_r, u_fft_c, otf_mask_sqr, gradient):
-    
     for i in range(PSIZE*4):
-        t1 = u_fft_r * u_fft_grad_r[i] + u_fft_c * u_fft_grad_c
+        t1 = u_fft_r * u_fft_grad_r[i] + u_fft_c * u_fft_grad_c[i]
         t1 = 2.0 * t1 * otf_mask_sqr
         gradient[i] = numpy.sum(t1)/(4.0 * PSIZE)
 
@@ -115,7 +114,19 @@ def initUFFTGrad(u_fft_grad_r, u_fft_grad_c):
                 
     for i in range(4*PSIZE):
         x_r[i] = 1.0
-        fft16x16(x_r, x_c, y_r, y_c)
-        u_fft_grad_r[i] = y_r
-        u_fft_grad_c[i] = y_c
+        fft_16x16(x_r, x_c, y_r, y_c)
+        u_fft_grad_r[i] = numpy.copy(y_r)
+        u_fft_grad_c[i] = numpy.copy(y_c)
         x_r[i] = 0.0
+
+# Python specific helper functions.
+def createUFFTGrad():
+    u_fft_grad_r = []
+    u_fft_grad_c = []
+
+    for i in range(4*PSIZE):
+        u_fft_grad_r.append(None)
+        u_fft_grad_c.append(None)
+
+    initUFFTGrad(u_fft_grad_r, u_fft_grad_c)
+    return [u_fft_grad_r, u_fft_grad_c]

@@ -11,6 +11,7 @@ import pyopencl as cl
 
 # python3 and C NCS reference version.
 import pyCNCS.ncs_c as ncsC
+import pyOpenCLNCS.py_ref as pyRef
 
 import pyOpenCLNCS
 
@@ -108,19 +109,34 @@ def test_calc_nc():
       cl.enqueue_copy(queue, nc, nc_buffer).wait()
       queue.finish()
 
-      # Reference
+      # Reference 1
       ncs_sr = ncsC.NCSCSubRegion(r_size = n_pts)
       ncs_sr.setOTFMask(otf_mask)
       ncs_sr.setU(u)
-      ref_nc = ncs_sr.calcNoiseContribution()
+      ref1_nc = ncs_sr.calcNoiseContribution()
       ncs_sr.cleanup()
 
-      norm_diff = abs(nc[0] - ref_nc)/abs(ref_nc)    
+      norm_diff = abs(nc[0] - ref1_nc)/abs(ref1_nc)    
+      assert (norm_diff < 1.0e-3), "Difference in results! {0:.6f}".format(norm_diff)
+
+      # Reference 2
+      u_r = numpy.copy(u).flatten()
+      u_c = numpy.zeros_like(u_r)
+      u_fft_r = numpy.zeros_like(u_r)
+      u_fft_c = numpy.zeros_like(u_c)
+      otf_mask_sqr = (otf_mask_shift * otf_mask_shift).flatten()
+      
+      pyRef.fft_16x16(u_r, u_c, u_fft_r, u_fft_c)
+      ref2_nc = pyRef.calcNoiseContribution(u_fft_r, u_fft_c, otf_mask_sqr)
+      
+      norm_diff = abs(nc[0] - ref2_nc)/abs(ref2_nc)
       assert (norm_diff < 1.0e-3), "Difference in results! {0:.6f}".format(norm_diff)
 
 def test_calc_nc_grad():
    n_pts = 16
 
+   [py_u_fft_grad_r, py_u_fft_grad_c] = pyRef.createUFFTGrad()
+   
    for i in range(10):
       
       # OpenCL 
@@ -156,16 +172,34 @@ def test_calc_nc_grad():
       cl.enqueue_copy(queue, grad, grad_buffer).wait()
       queue.finish()
       
-      # Reference
+      # Reference 1
       ncs_sr = ncsC.NCSCSubRegion(r_size = n_pts)
       ncs_sr.setOTFMask(otf_mask)
       ncs_sr.setU(u)
       ncs_sr.calcNoiseContribution()
-      ref_grad = ncs_sr.calcNCGradient().reshape(grad.shape)
+      ref1_grad = ncs_sr.calcNCGradient().reshape(grad.shape)
       ncs_sr.cleanup()
       
-      ref_norm = numpy.abs(ref_grad)
+      ref_norm = numpy.abs(ref1_grad)
       ref_norm[(ref_norm<1.0)] = 1.0
 
-      max_diff = numpy.max(numpy.abs(grad - ref_grad)/ref_norm)
+      max_diff = numpy.max(numpy.abs(grad - ref1_grad)/ref_norm)
       assert (max_diff < 1.0e-5), "Difference in results! {0:.8f}".format(max_diff)
+
+      # Reference 2
+      u_r = numpy.copy(u).flatten()
+      u_c = numpy.zeros_like(u_r)
+      u_fft_r = numpy.zeros_like(u_r)
+      u_fft_c = numpy.zeros_like(u_r)
+      ref2_grad = numpy.zeros_like(u_r)
+      otf_mask_sqr = (otf_mask_shift * otf_mask_shift).flatten()
+      
+      pyRef.fft_16x16(u_r, u_c, u_fft_r, u_fft_c)
+      pyRef.calcNCGradient(py_u_fft_grad_r, py_u_fft_grad_c, u_fft_r, u_fft_c, otf_mask_sqr, ref2_grad)
+
+      ref_norm = numpy.abs(ref2_grad)
+      ref_norm[(ref_norm<1.0)] = 1.0
+
+      max_diff = numpy.max(numpy.abs(grad.flatten() - ref2_grad)/ref_norm)
+      assert (max_diff < 1.0e-5), "Difference in results! {0:.8f}".format(max_diff)
+      
