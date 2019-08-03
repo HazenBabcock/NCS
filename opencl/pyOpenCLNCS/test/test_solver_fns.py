@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Test vector functions.
+# Test solver functions.
 #
 # Hazen 07/19
 #
@@ -56,7 +56,7 @@ def test_converged_1():
    
    # Test 1 (not converged).
    v1 = 0.9*numpy.ones(n_pts).astype(numpy.float32)
-   v2 = 1.0e-5*numpy.ones(n_pts).astype(numpy.float32)
+   v2 = 1.0e-4*numpy.ones(n_pts).astype(numpy.float32)
    v3 = numpy.array([-1]).astype(numpy.int32)
 
    v1_buffer = cl.Buffer(context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf = v1)
@@ -72,7 +72,7 @@ def test_converged_1():
 def test_converged_2():
    # Test 2 (converged).
    v1 = 1.1*numpy.ones(n_pts).astype(numpy.float32)
-   v2 = 1.0e-5*numpy.ones(n_pts).astype(numpy.float32)
+   v2 = 1.0e-4*numpy.ones(n_pts).astype(numpy.float32)
    v3 = numpy.array([-1]).astype(numpy.int32)
    
    v1_buffer = cl.Buffer(context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf = v1)
@@ -88,7 +88,7 @@ def test_converged_2():
 def test_converged_3():
    # Test 3 (converged due xnorm minimum of 1.0).
    v1 = (0.1/numpy.sqrt(n_pts))*numpy.ones(n_pts).astype(numpy.float32)
-   v2 = (0.9e-5/numpy.sqrt(n_pts))*numpy.ones(n_pts).astype(numpy.float32)
+   v2 = (0.9e-4/numpy.sqrt(n_pts))*numpy.ones(n_pts).astype(numpy.float32)
    v3 = numpy.array([-1]).astype(numpy.int32)
    
    v1_buffer = cl.Buffer(context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf = v1)
