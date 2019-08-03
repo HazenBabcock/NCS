@@ -8,6 +8,8 @@ import numpy
 import pyopencl as cl
 
 import pyOpenCLNCS
+import pyOpenCLNCS.py_ref as pyRef
+
 
 kernel_code = """
 
@@ -198,18 +200,27 @@ def test_veccopy():
    v1 = numpy.zeros(n_pts, dtype = numpy.float32)
    v2 = numpy.random.uniform(low = 1.0, high = 10.0, size = n_pts).astype(dtype = numpy.float32)
 
+   v1_c = numpy.copy(v1)
+   v2_c = numpy.copy(v2)
+
    v1_buffer = cl.Buffer(context, cl.mem_flags.WRITE_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf = v1)
    v2_buffer = cl.Buffer(context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf = v2)
 
    program.veccopy_test(queue, (1,), (1,), v1_buffer, v2_buffer)
    cl.enqueue_copy(queue, v1, v1_buffer).wait()
    queue.finish()
-   
+
    assert numpy.allclose(v1, v2)
 
+   pyRef.veccopy(v1_c, v2_c)
+   assert numpy.allclose(v1_c, v2_c)
+   
 def test_vecncopy():
    v1 = numpy.zeros(n_pts, dtype = numpy.float32)
    v2 = numpy.random.uniform(low = 1.0, high = 10.0, size = n_pts).astype(dtype = numpy.float32)
+
+   v1_c = numpy.copy(v1)
+   v2_c = numpy.copy(v2)
 
    v1_buffer = cl.Buffer(context, cl.mem_flags.WRITE_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf = v1)
    v2_buffer = cl.Buffer(context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf = v2)
@@ -220,10 +231,16 @@ def test_vecncopy():
    
    assert numpy.allclose(v1, -v2)
 
+   pyRef.vecncopy(v1_c, v2_c)
+   assert numpy.allclose(v1_c, -v2_c)
+
 def test_vecdot():
    v1 = numpy.random.uniform(low = 1.0, high = 10.0, size = n_pts).astype(dtype = numpy.float32)
    v2 = numpy.random.uniform(low = 1.0, high = 10.0, size = n_pts).astype(dtype = numpy.float32)
    v3 = numpy.zeros(1).astype(numpy.float32)
+
+   v1_c = numpy.copy(v1)
+   v2_c = numpy.copy(v2)
 
    v1_buffer = cl.Buffer(context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf = v1)
    v2_buffer = cl.Buffer(context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf = v2)
@@ -232,14 +249,21 @@ def test_vecdot():
    program.vecdot_test(queue, (1,), (1,), v1_buffer, v2_buffer, v3_buffer)
    cl.enqueue_copy(queue, v3, v3_buffer).wait()
    queue.finish()
-   
+
    assert numpy.allclose(v3, numpy.sum(v1*v2))
 
+   v3_c = pyRef.vecdot(v1_c, v2_c)
+   assert numpy.allclose(v3, numpy.sum(v1*v2))
+   
 def test_vecfma():
    v1 = numpy.zeros(n_pts, dtype = numpy.float32)
    v2 = numpy.random.uniform(low = 1.0, high = 10.0, size = n_pts).astype(dtype = numpy.float32)
    v3 = numpy.random.uniform(low = 1.0, high = 10.0, size = n_pts).astype(dtype = numpy.float32)
    v4 = numpy.float32(2.0)
+
+   v1_c = numpy.copy(v1)
+   v2_c = numpy.copy(v2)
+   v3_c = numpy.copy(v3)
 
    v1_buffer = cl.Buffer(context, cl.mem_flags.WRITE_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf = v1)
    v2_buffer = cl.Buffer(context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf = v2)
@@ -251,12 +275,17 @@ def test_vecfma():
    
    assert numpy.allclose(v1, v2*v4 + v3)
 
+   pyRef.vecfma(v1_c, v2_c, v3_c, v4)
+   assert numpy.allclose(v1_c, v2_c*v4 + v3_c)
+
 def test_vecfmaInplace():
    v1 = numpy.random.uniform(low = 1.0, high = 10.0, size = n_pts).astype(dtype = numpy.float32)
    v2 = numpy.random.uniform(low = 1.0, high = 10.0, size = n_pts).astype(dtype = numpy.float32)
    v3 = numpy.float32(2.0)
 
-   v4 = numpy.copy(v1)
+   v1_ref = numpy.copy(v1)
+   v1_c = numpy.copy(v1)
+   v2_c = numpy.copy(v2)
    
    v1_buffer = cl.Buffer(context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf = v1)
    v2_buffer = cl.Buffer(context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf = v2)
@@ -265,12 +294,19 @@ def test_vecfmaInplace():
    cl.enqueue_copy(queue, v1, v1_buffer).wait()
    queue.finish()
    
-   assert numpy.allclose(v1, v2*v3 + v4)
+   assert numpy.allclose(v1, v2*v3 + v1_ref)
+
+   pyRef.vecfmaInplace(v1_c, v2_c, v3)
+   assert numpy.allclose(v1_c, v2_c*v3 + v1_ref)
 
 def test_vecmul():
    v1 = numpy.zeros(n_pts, dtype = numpy.float32)
    v2 = numpy.random.uniform(low = 1.0, high = 10.0, size = n_pts).astype(dtype = numpy.float32)
    v3 = numpy.random.uniform(low = 1.0, high = 10.0, size = n_pts).astype(dtype = numpy.float32)
+
+   v1_c = numpy.copy(v1)
+   v2_c = numpy.copy(v2)
+   v3_c = numpy.copy(v3)
 
    v1_buffer = cl.Buffer(context, cl.mem_flags.WRITE_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf = v1)
    v2_buffer = cl.Buffer(context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf = v2)
@@ -282,9 +318,14 @@ def test_vecmul():
 
    assert numpy.allclose(v1, v2*v3)
 
+   pyRef.vecmul(v1_c, v2_c, v3_c)
+   assert numpy.allclose(v1_c, v2_c*v3_c)
+
 def test_vecnorm():
    v1 = numpy.random.uniform(low = 1.0, high = 10.0, size = n_pts).astype(dtype = numpy.float32)
    v2 = numpy.zeros(1).astype(numpy.float32)
+
+   v1_c = numpy.copy(v1)
    
    v1_buffer = cl.Buffer(context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf = v1)
    v2_buffer = cl.Buffer(context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf = v2)
@@ -295,11 +336,15 @@ def test_vecnorm():
    
    assert numpy.allclose(v2, numpy.linalg.norm(v1))
    
+   v2_c = pyRef.vecnorm(v1)
+   assert numpy.allclose(v2_c, numpy.linalg.norm(v1))
+   
 def test_vecscaleInplace():
    v1 = numpy.random.uniform(low = 1.0, high = 10.0, size = n_pts).astype(dtype = numpy.float32)
    v2 = numpy.float32(0.5)
 
-   v3 = numpy.copy(v1)*v2
+   v1_c = numpy.copy(v1)
+   v1_ref = numpy.copy(v1)*v2
    
    v1_buffer = cl.Buffer(context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf = v1)
 
@@ -307,12 +352,19 @@ def test_vecscaleInplace():
    cl.enqueue_copy(queue, v1, v1_buffer).wait()
    queue.finish()
    
-   assert numpy.allclose(v1, v3)
+   assert numpy.allclose(v1, v1_ref)
+
+   pyRef.vecscaleInplace(v1_c, v2)
+   assert numpy.allclose(v1_c, v1_ref)
 
 def test_vecsub():
    v1 = numpy.zeros(n_pts, dtype = numpy.float32)
    v2 = numpy.random.uniform(low = 1.0, high = 10.0, size = n_pts).astype(dtype = numpy.float32)
    v3 = numpy.random.uniform(low = 1.0, high = 10.0, size = n_pts).astype(dtype = numpy.float32)
+
+   v1_c = numpy.copy(v1)
+   v2_c = numpy.copy(v2)
+   v3_c = numpy.copy(v3)
 
    v1_buffer = cl.Buffer(context, cl.mem_flags.WRITE_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf = v1)
    v2_buffer = cl.Buffer(context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf = v2)
@@ -323,3 +375,6 @@ def test_vecsub():
    queue.finish()
 
    assert numpy.allclose(v1, v2-v3)
+
+   pyRef.vecsub(v1_c, v2_c, v3_c)
+   assert numpy.allclose(v1_c, v2_c-v3_c)
