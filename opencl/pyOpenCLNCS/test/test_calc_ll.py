@@ -11,6 +11,7 @@ import pyopencl as cl
 
 # python3 and C NCS reference version.
 import pyCNCS.ncs_c as ncsC
+import pyOpenCLNCS.py_ref as pyRef
 
 import pyOpenCLNCS
 
@@ -101,14 +102,19 @@ def test_calc_ll():
       cl.enqueue_copy(queue, ll, ll_buffer).wait()
       queue.finish()
       
-      # Reference
+      # Reference 1
       ncs_sr = ncsC.NCSCSubRegion(r_size = n_pts)
       ncs_sr.newRegion(data, gamma)
       ncs_sr.setU(u)
-      ref_ll = ncs_sr.calcLogLikelihood()
+      ref1_ll = ncs_sr.calcLogLikelihood()
       ncs_sr.cleanup()
       
-      assert (abs(ll[0] - ref_ll) < 1.0e-3), "Difference in results! {0:.6f} {1:.6f}".format(ll[0], ref_ll)
+      assert (abs(ll[0] - ref1_ll) < 1.0e-3), "Difference in results! {0:.6f} {1:.6f}".format(ll[0], ref1_ll)
+
+      # Reference 2
+      ref2_ll = pyRef.calcLogLikelihood(u, data, gamma)
+      assert (abs(ll[0] - ref2_ll) < 1.0e-3), "Difference in results! {0:.6f} {1:.6f}".format(ll[0], ref2_ll)
+
 
 def test_calc_ll_grad():
    n_pts = 16
@@ -134,11 +140,21 @@ def test_calc_ll_grad():
       ncs_sr = ncsC.NCSCSubRegion(r_size = n_pts)
       ncs_sr.newRegion(data, gamma)
       ncs_sr.setU(u)
-      ref_grad = ncs_sr.calcLLGradient().reshape(grad.shape)
+      ref1_grad = ncs_sr.calcLLGradient().reshape(grad.shape)
       ncs_sr.cleanup()
  
-      ref_norm = numpy.abs(ref_grad)
-      ref_norm[(ref_norm<1.0)] = 1.0
+      ref1_norm = numpy.abs(ref1_grad)
+      ref1_norm[(ref1_norm<1.0)] = 1.0
 
-      max_diff = numpy.max(numpy.abs(grad - ref_grad)/ref_norm)
+      max_diff = numpy.max(numpy.abs(grad - ref1_grad)/ref1_norm)
       assert (max_diff < 1.0e-5), "Difference in results! {0:.8f}".format(max_diff)
+
+      ref2_grad = numpy.zeros((n_pts, n_pts), dtype = numpy.float32)
+      pyRef.calcLLGradient(u, data, gamma, ref2_grad)
+
+      ref2_norm = numpy.abs(ref2_grad)
+      ref2_norm[(ref2_norm<1.0)] = 1.0
+
+      max_diff = numpy.max(numpy.abs(grad - ref2_grad)/ref2_norm)
+      assert (max_diff < 1.0e-5), "Difference in results! {0:.8f}".format(max_diff)
+      

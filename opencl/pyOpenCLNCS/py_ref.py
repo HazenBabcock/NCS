@@ -4,6 +4,9 @@
 #
 # Written to match the OpenCL code, not for style..
 #
+# Unfortunately  the match is not perfect. I tried to use numpy.float32
+# for all the math but there are still small differences..
+#
 # Hazen 08/19
 #
 
@@ -81,7 +84,7 @@ def calcLogLikelihood(u, data, gamma):
     t2 = u + gamma
     t2[(t2 < FITMIN)] = FITMIN
     t2 = numpy.log(t2)
-
+    
     return numpy.sum(u - t1*t2)
 
 def calcNCGradient(u_fft_grad_r, u_fft_grad_c, u_fft_r, u_fft_c, otf_mask_sqr, gradient):
