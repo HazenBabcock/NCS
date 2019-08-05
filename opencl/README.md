@@ -7,7 +7,7 @@ An OpenCL GPU kernel for NCS.
 Please see the Jupyter notebooks in the `jupyter_notebooks` folder for
 examples of how to use the kernels.
 
-### Notebook dependencies ###
+### Jupyter notebook dependencies ###
 
 #### Python 3 ####
 
