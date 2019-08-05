@@ -54,7 +54,7 @@
 
 #define C_1 1.0e-4f        /* Armijo rule/condition scaling value. */
 #define EPSILON 1.0e-4f    /* Stopping point. */
-#define M 8                /* Number of history points saved. */
+#define M 8                /* Number of history points saved. Must be a power of 2. */
 #define MAXITERS 200       /* Maximum number of iterations. */
 #define MIN_STEP 1.0e-6f   /* Minimum step size. */
 #define STEPM 0.5          /* Step size multiplier. */
@@ -546,6 +546,11 @@ int converged(float4 *x, float4 *g)
     }
 }
 
+int moduloM(int i)
+{
+    return i & (M-1);
+}
+
 
 /****************
  * Kernels.
@@ -768,7 +773,7 @@ __kernel void ncsReduceNoise(__global float4 *u_fft_grad_r,
         vecncopy(srch_dir, gradient);
         bound = min(k, M);
         for(j=0; j<bound; j++){
-            ci = (k - j - 1)%M;
+	    ci = (k - j - 1)%M;
             a[ci] = vecdot(s[ci], srch_dir)*ys[ci];
             vecfmaInplace(srch_dir, y[ci], -a[ci]);
         }
@@ -776,7 +781,7 @@ __kernel void ncsReduceNoise(__global float4 *u_fft_grad_r,
         vecscaleInplace(srch_dir, ys_c0*yy);
         
         for(j=0; j<bound; j++){
-            ci = (k + j - bound)%M;
+	    ci = (k + j - bound)%M;
             beta = vecdot(y[ci], srch_dir)*ys[ci];
             vecfmaInplace(srch_dir, s[ci], (a[ci] - beta));
         }

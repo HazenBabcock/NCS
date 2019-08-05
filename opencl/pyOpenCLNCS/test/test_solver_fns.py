@@ -26,6 +26,13 @@ __kernel void converged_test(__global float4 *g_v1,
     *g_conv = converged(v1, v2);
 }
 
+__kernel void moduloM_test(__global int *g_i,
+                           __global int *g_j)
+{
+    int i = g_i[0];
+    *g_j = moduloM(i);
+}
+
 """
 
 #
@@ -100,3 +107,34 @@ def test_converged_3():
    queue.finish()
    
    assert (v3[0] == 1)
+
+def _test_moduloM():
+   #
+   # Not used. I'd read that module on a GPU was very slow and should be
+   # avoided so I tried replacing it with a bitwise AND. This however
+   # had no effect on the processing time so I went back to modulo as it
+   # is more flexible.
+   #
+   
+   # Figure out value of M in kernel_code
+   for elt in kernel_code.splitlines():
+      if elt.startswith('#define M '):
+          m_val = int(elt.split(" ")[2])
+          assert ((m_val > 0) and ((m_val & (m_val - 1)) == 0)), str(m_val) + " is not a power of 2!"
+   
+   for i in range(20):
+      v1 = numpy.array([i]).astype(numpy.int)
+      v2 = numpy.zeros(1, dtype = numpy.int)
+
+      v1_buffer = cl.Buffer(context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf = v1)
+      v2_buffer = cl.Buffer(context, cl.mem_flags.WRITE_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf = v2)
+   
+      program.moduloM_test(queue, (1,), (1,), v1_buffer, v2_buffer)
+      cl.enqueue_copy(queue, v2, v2_buffer).wait()
+      queue.finish()
+   
+      assert (v2[0] == (i % 8))
+      
+if (__name__ == "__main__"):
+   test_moduloM()
+   
