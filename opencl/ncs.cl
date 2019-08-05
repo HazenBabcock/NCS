@@ -39,7 +39,7 @@
  */
 
 /* Threshold for handling negative values in the fit. */
-#define FITMIN 1.0e-6
+#define FITMIN 1.0e-6f
 
 /*
  * The problem size is (16*16)/4 or 256/4.
@@ -536,7 +536,7 @@ float calcNoiseContribution(float4 *u_fft_r, float4 *u_fft_c, float4 *otf_mask_s
 
 int converged(float4 *x, float4 *g)
 {
-    float xnorm = fmax(vecnorm(x), 1.0);
+    float xnorm = fmax(vecnorm(x), 1.0f);
     float gnorm = vecnorm(g);
     if ((gnorm/xnorm) > EPSILON){
         return 0;
