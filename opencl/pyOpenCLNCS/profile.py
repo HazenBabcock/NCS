@@ -105,7 +105,7 @@ def profile(n_reps):
     print("OpenCL {0:.6f} seconds".format(e_time))
 
     
-def profileCNSC(n_reps):
+def profileNCSC(n_reps):
     """
     The C reference version for comparison.
     """
@@ -132,4 +132,4 @@ def profileCNSC(n_reps):
 
 if (__name__ == "__main__"):
     profile(1000)
-    profileCNSC(1000)
+    profileNCSC(1000)
