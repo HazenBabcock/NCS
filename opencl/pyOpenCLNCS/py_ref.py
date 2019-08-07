@@ -35,6 +35,11 @@ REACHED_MAXPRECISION = -5
 
 ## FFT functions.
 
+def fft_16(x_r, x_c, y_r, y_c):
+    x_fft = numpy.fft.fft(x_r + 1j*x_c);
+    y_r[:] = numpy.real(x_fft)
+    y_c[:] = numpy.imag(x_fft)
+    
 def fft_16x16(x_r, x_c, y_r, y_c):
     t1 = x_r.reshape(16,16)
     t2 = x_c.reshape(16,16)
@@ -92,6 +97,7 @@ def calcLogLikelihood(u, data, gamma):
     
     return numpy.sum(u - t1*t2)
 
+# This version matches the approach used in NCS/clib
 def calcNCGradient(u_fft_grad_r, u_fft_grad_c, u_fft_r, u_fft_c, otf_mask_sqr, gradient):
     for i in range(PSIZE*4):
         t1 = u_fft_r * u_fft_grad_r[i] + u_fft_c * u_fft_grad_c[i]
