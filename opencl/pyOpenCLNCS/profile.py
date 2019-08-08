@@ -179,6 +179,14 @@ def profileNCSC(n_reps):
     
 
 if (__name__ == "__main__"):
-   profile(1000)
-   profile_v0(1000)
-   profileNCSC(1000)
+   import argparse
+
+   parser = argparse.ArgumentParser(description = 'NCS in OpenCL')
+
+   parser.add_argument('--reps', dest='reps', type=int, required=False, default = 1000,
+                       help = "Number sub-regions to process in profiling.")
+   args = parser.parse_args()
+   
+   profile(args.reps)
+   profile_v0(args.reps)
+   profileNCSC(args.reps)
