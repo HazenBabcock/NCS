@@ -9,9 +9,9 @@ import pyopencl as cl
 
 # python3 and C NCS reference version.
 import pyCNCS.ncs_c as ncsC
-import pyOpenCLNCS.py_ref as pyRef
 
 import pyOpenCLNCS
+import pyOpenCLNCS.py_ref as pyRef
 
 
 #
@@ -46,20 +46,9 @@ def test_ncs_noise_reduction_1():
 
    data = numpy.random.uniform(low = 10.0, high = 20.0, size = (n_pts, n_pts)).astype(dtype = numpy.float32)
    gamma = numpy.random.uniform(low = 2.0, high = 4.0, size = (n_pts, n_pts)).astype(dtype = numpy.float32)
-   otf_mask = numpy.random.uniform(size = (n_pts, n_pts)).astype(numpy.float32)
-   otf_mask_shift = numpy.fft.fftshift(otf_mask)
+   otf_mask_shift = pyRef.createOTFMask()
 
    # OpenCL Setup.
-   u_fft_grad_r = numpy.zeros((n_pts * n_pts, n_pts, n_pts)).astype(numpy.float32)
-   u_fft_grad_c = numpy.zeros((n_pts * n_pts, n_pts, n_pts)).astype(numpy.float32)
-   
-   u_fft_grad_r_buffer = cl.Buffer(context, 
-                                   cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, 
-                                   hostbuf = u_fft_grad_r)
-   u_fft_grad_c_buffer = cl.Buffer(context, 
-                                   cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, 
-                                   hostbuf = u_fft_grad_c)
-   
    u = numpy.zeros((n_pts, n_pts), dtype = numpy.float32)
    iters = numpy.zeros(1, dtype = numpy.int32)
    status = numpy.zeros(1, dtype = numpy.int32)
@@ -78,11 +67,7 @@ def test_ncs_noise_reduction_1():
                              hostbuf = status)
 
    # OpenCL noise reduction.
-   program.initUFFTGrad(queue, (1,), (1,), u_fft_grad_r_buffer, u_fft_grad_c_buffer)
-
    program.ncsReduceNoise(queue, (1,), (1,),
-                          u_fft_grad_r_buffer,
-                          u_fft_grad_c_buffer,
                           data_buffer,
                           gamma_buffer,
                           otf_mask_buffer,
@@ -124,20 +109,9 @@ def test_ncs_noise_reduction_2():
 
    data = numpy.random.uniform(low = 10.0, high = 20.0, size = (n_reps, n_pts, n_pts)).astype(dtype = numpy.float32)
    gamma = numpy.random.uniform(low = 2.0, high = 4.0, size = (n_pts, n_pts)).astype(dtype = numpy.float32)
-   otf_mask = numpy.random.uniform(size = (n_pts, n_pts)).astype(numpy.float32)
-   otf_mask_shift = numpy.fft.fftshift(otf_mask)
+   otf_mask_shift = pyRef.createOTFMask()
 
-   # OpenCL Setup.   
-   u_fft_grad_r = numpy.zeros((n_pts * n_pts, n_pts, n_pts)).astype(numpy.float32)
-   u_fft_grad_c = numpy.zeros((n_pts * n_pts, n_pts, n_pts)).astype(numpy.float32)
-   
-   u_fft_grad_r_buffer = cl.Buffer(context, 
-                                   cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, 
-                                   hostbuf = u_fft_grad_r)
-   u_fft_grad_c_buffer = cl.Buffer(context, 
-                                   cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, 
-                                   hostbuf = u_fft_grad_c)
-   
+   # OpenCL Setup.
    u = numpy.zeros((n_reps, n_pts, n_pts), dtype = numpy.float32)
    iters = numpy.zeros(n_reps, dtype = numpy.int32)
    status = numpy.zeros(n_reps, dtype = numpy.int32)
@@ -156,11 +130,7 @@ def test_ncs_noise_reduction_2():
                              hostbuf = status)
 
    # OpenCL noise reduction.
-   program.initUFFTGrad(queue, (1,), (1,), u_fft_grad_r_buffer, u_fft_grad_c_buffer)
-
    program.ncsReduceNoise(queue, (n_reps,), (1,),
-                          u_fft_grad_r_buffer,
-                          u_fft_grad_c_buffer,
                           data_buffer,
                           gamma_buffer,
                           otf_mask_buffer,
@@ -175,6 +145,8 @@ def test_ncs_noise_reduction_2():
    queue.finish()
 
    # NCSC noise reduction.
+   otf_mask = numpy.fft.fftshift(otf_mask_shift.reshape(16, 16))
+   
    ref_u = numpy.zeros_like(data)
 
    ncs_sr = ncsC.NCSCSubRegion(r_size = n_pts)

@@ -11,9 +11,9 @@ import pyopencl as cl
 
 # python3 and C NCS reference version.
 import pyCNCS.ncs_c as ncsC
-import pyOpenCLNCS.py_ref as pyRef
 
 import pyOpenCLNCS
+import pyOpenCLNCS.py_ref as pyRef
 
 kernel_code = """
 
@@ -37,11 +37,36 @@ __kernel void calc_nc_test(__global float4 *g_u,
     *g_sum = calcNoiseContribution(u_fft_r, u_fft_c, otf_mask_sqr);
 }
 
-__kernel void calc_nc_grad_test(__global float4 *u_fft_grad_r,
-                                __global float4 *u_fft_grad_c,
-                                __global float4 *g_u,
+__kernel void calc_nc_grad_test(__global float4 *g_u,
                                 __global float4 *g_otf_mask, 
                                 __global float4 *g_gradient)
+{
+    float4 u_fft_r[PSIZE];
+    float4 u_fft_c[PSIZE];
+    float4 u_r[PSIZE];
+    float4 u_c[PSIZE];
+    float4 otf_mask_sqr[PSIZE];
+    float4 gradient[PSIZE];
+
+    for(int i=0; i<PSIZE; i++){
+        u_r[i] = g_u[i];
+        u_c[i] = (float4)(0.0, 0.0, 0.0, 0.0);
+        otf_mask_sqr[i] = g_otf_mask[i]*g_otf_mask[i];
+    }
+
+    fft_16x16(u_r, u_c, u_fft_r, u_fft_c);
+    calcNCGradientIFFT(u_fft_r, u_fft_c, otf_mask_sqr, gradient);
+
+    for(int i=0; i<PSIZE; i++){
+        g_gradient[i] = gradient[i];
+    }
+}
+
+__kernel void calc_nc_grad_test_v0(__global float4 *u_fft_grad_r,
+                                   __global float4 *u_fft_grad_c,
+                                   __global float4 *g_u,
+                                   __global float4 *g_otf_mask, 
+                                   __global float4 *g_gradient)
 {
     float4 u_fft_r[PSIZE];
     float4 u_fft_c[PSIZE];
@@ -132,7 +157,7 @@ def test_calc_nc():
       norm_diff = abs(nc[0] - ref2_nc)/abs(ref2_nc)
       assert (norm_diff < 1.0e-3), "Difference in results! {0:.6f}".format(norm_diff)
 
-def test_calc_nc_grad():
+def test_calc_nc_grad_1():
    n_pts = 16
 
    [py_u_fft_grad_r, py_u_fft_grad_c] = pyRef.createUFFTGrad()
@@ -154,25 +179,25 @@ def test_calc_nc_grad():
       
       # Calculate gradient.
       u = numpy.random.uniform(low = 1.0, high = 10.0, size = (n_pts, n_pts)).astype(dtype = numpy.float32)
-      otf_mask = numpy.random.uniform(size = (n_pts, n_pts)).astype(numpy.float32)
-      otf_mask_shift = numpy.fft.fftshift(otf_mask)
+      otf_mask_shift = pyRef.createOTFMask()
       grad = numpy.zeros((n_pts, n_pts)).astype(numpy.float32)
       
       u_buffer = cl.Buffer(context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf = u)
       otf_mask_buffer = cl.Buffer(context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf = otf_mask_shift)
       grad_buffer = cl.Buffer(context, cl.mem_flags.WRITE_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf = grad)
       
-      program.calc_nc_grad_test(queue, (1,), (1,),
-                                u_fft_grad_r_buffer,
-                                u_fft_grad_c_buffer,
-                                u_buffer,
-                                otf_mask_buffer,
-                                grad_buffer) 
+      program.calc_nc_grad_test_v0(queue, (1,), (1,),
+                                   u_fft_grad_r_buffer,
+                                   u_fft_grad_c_buffer,
+                                   u_buffer,
+                                   otf_mask_buffer,
+                                   grad_buffer) 
 
       cl.enqueue_copy(queue, grad, grad_buffer).wait()
       queue.finish()
       
       # Reference 1
+      otf_mask = numpy.fft.fftshift(otf_mask_shift.reshape(16, 16))
       ncs_sr = ncsC.NCSCSubRegion(r_size = n_pts)
       ncs_sr.setOTFMask(otf_mask)
       ncs_sr.setU(u)
@@ -202,4 +227,62 @@ def test_calc_nc_grad():
 
       max_diff = numpy.max(numpy.abs(grad.flatten() - ref2_grad)/ref_norm)
       assert (max_diff < 1.0e-5), "Difference in results! {0:.8f}".format(max_diff)
+
+def test_calc_nc_grad_2():
+   n_pts = 16
+   
+   for i in range(10):
       
+      # OpenCL gradient calculation.
+      u = numpy.random.uniform(low = 1.0, high = 10.0, size = (n_pts, n_pts)).astype(dtype = numpy.float32)
+      otf_mask_shift = pyRef.createOTFMask()
+      grad = numpy.zeros((n_pts, n_pts)).astype(numpy.float32)
+      
+      u_buffer = cl.Buffer(context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf = u)
+      otf_mask_buffer = cl.Buffer(context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf = otf_mask_shift)
+      grad_buffer = cl.Buffer(context, cl.mem_flags.WRITE_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf = grad)
+      
+      program.calc_nc_grad_test(queue, (1,), (1,),
+                                u_buffer,
+                                otf_mask_buffer,
+                                grad_buffer) 
+
+      cl.enqueue_copy(queue, grad, grad_buffer).wait()
+      queue.finish()
+      
+      # Reference 1
+      otf_mask = numpy.fft.fftshift(otf_mask_shift.reshape(16, 16))
+      ncs_sr = ncsC.NCSCSubRegion(r_size = n_pts)
+      ncs_sr.setOTFMask(otf_mask)
+      ncs_sr.setU(u)
+      ncs_sr.calcNoiseContribution()
+      ref1_grad = ncs_sr.calcNCGradient().reshape(grad.shape)
+      ncs_sr.cleanup()
+      
+      ref_norm = numpy.abs(ref1_grad)
+      ref_norm[(ref_norm<1.0)] = 1.0
+
+      max_diff = numpy.max(numpy.abs(grad - ref1_grad)/ref_norm)
+      assert (max_diff < 1.0e-5), "Difference in results! {0:.8f}".format(max_diff)
+
+      # Reference 2
+      u_r = numpy.copy(u).flatten()
+      u_c = numpy.zeros_like(u_r)
+      u_fft_r = numpy.zeros_like(u_r)
+      u_fft_c = numpy.zeros_like(u_r)
+      ref2_grad = numpy.zeros_like(u_r)
+      otf_mask_sqr = otf_mask_shift * otf_mask_shift
+      
+      pyRef.fft_16x16(u_r, u_c, u_fft_r, u_fft_c)
+      pyRef.calcNCGradientIFFT(u_fft_r, u_fft_c, otf_mask_sqr, ref2_grad)
+
+      ref_norm = numpy.abs(ref2_grad)
+      ref_norm[(ref_norm<1.0)] = 1.0
+
+      max_diff = numpy.max(numpy.abs(grad.flatten() - ref2_grad)/ref_norm)
+      assert (max_diff < 1.0e-5), "Difference in results! {0:.8f}".format(max_diff)
+      
+
+if (__name__ == "__main__"):
+   test_calc_nc_grad_1()
+   

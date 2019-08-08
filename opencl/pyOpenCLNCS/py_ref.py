@@ -4,7 +4,7 @@
 #
 # Written to match the OpenCL code, not for style..
 #
-# Unfortunately  the match is not perfect. I tried to use numpy.float32
+# Unfortunately the match is not perfect. I tried to use numpy.float32
 # for all the math but there are still small differences..
 #
 # Hazen 08/19
@@ -104,6 +104,12 @@ def calcNCGradient(u_fft_grad_r, u_fft_grad_c, u_fft_r, u_fft_c, otf_mask_sqr, g
         t1 = 2.0 * t1 * otf_mask_sqr
         gradient[i] = numpy.sum(t1)/(4.0 * PSIZE)
 
+def calcNCGradientIFFT(u_fft_r, u_fft_c, otf_mask_sqr, gradient):
+    u = (u_fft_r + 1j*u_fft_c).reshape(16, 16)
+    u = 2.0 * u * otf_mask_sqr.reshape(16, 16)
+    x = numpy.fft.ifft2(u)
+    gradient[:] = numpy.real(x.flatten())
+
 def calcNoiseContribution(u_fft_r, u_fft_c, otf_mask_sqr):
     t1 = u_fft_r * u_fft_r + u_fft_c * u_fft_c
     t1 = t1 * otf_mask_sqr
@@ -120,6 +126,16 @@ def converged(x, g):
 
 ## Python specific helper functions.
 
+def createOTFMask():
+    x = numpy.linspace(-5.0, 5.0, num = 16)
+    gx = numpy.exp(-x*x)
+    rc_filter = 1.0 - numpy.outer(gx, gx)
+    rc_filter = rc_filter - numpy.min(rc_filter)
+    rc_filter = rc_filter/numpy.max(rc_filter)
+    rc_filter = numpy.fft.fftshift(rc_filter).flatten()
+
+    return rc_filter.astype(numpy.float32)
+    
 def createUFFTGrad():
     u_fft_grad_r = []
     u_fft_grad_c = []
