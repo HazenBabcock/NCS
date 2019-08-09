@@ -216,40 +216,28 @@ double ncsSRCalcLogLikelihood(ncsSubRegion *ncs_sr)
  */
 void ncsSRCalcNCGradient(ncsSubRegion *ncs_sr, double *gradient)
 {
-  int i,j,k,l,m,size,fft_size;
-  double sum,t1,t2;
-  fftw_complex *ft,*ft_g;
+  int i,j,k,size,fft_size;
+  double t1;
 
   size = ncs_sr->r_size;
   fft_size = ncs_sr->fft_size;
-  ft = ncs_sr->u_fft;
-  
-  for(i=0;i<(size*size);i++){
-    ft_g = ncs_sr->u_fft_grad[i];
-    sum = 0.0;
-    for(j=0;j<size;j++){
-      for(k=0;k<size;k++){
-	l = j*size+k;
 
-	/* FFT has a different size than the OTF mask. */
-	if(k>=fft_size){
-	  if(j==0){
-	    m = size-k;
-	  }
-	  else{
-	    m = (size-j+1)*fft_size - k + (size - fft_size);
-	  }
-	}
-	else{
-	  m = j*fft_size + k;  
-	}
-
-	t1 = ft_g[m][0]*ft[m][0] + ft_g[m][1]*ft[m][1];
-	t2 = ncs_sr->otf_mask[l];
-	sum += 2.0*t1*t2*t2;
-      }
+  /* Calculate FFT of NC gradient. */
+  for(i=0;i<size;i++){
+    for(j=0;j<fft_size;j++){
+      k = i*fft_size+j;
+      t1 = 2.0*ncs_sr->otf_mask_sqr[i*size+j];
+      ncs_sr->g_fft[k][0] = ncs_sr->u_fft[k][0]*t1;
+      ncs_sr->g_fft[k][1] = ncs_sr->u_fft[k][1]*t1;
     }
-    gradient[i] = sum;
+  }
+
+  /* IFFT. */
+  fftw_execute(ncs_sr->fft_backward);
+
+  /* Update gradient. */
+  for(i=0;i<(size*size);i++){
+    gradient[i] = ncs_sr->g[i]*ncs_sr->normalization;
   }
 }
 
@@ -263,19 +251,13 @@ void ncsSRCalcNCGradient(ncsSubRegion *ncs_sr, double *gradient)
 double ncsSRCalcNoiseContribution(ncsSubRegion *ncs_sr)
 {
   int i,j,k,l,size,fft_size;
-  double sum,t1,t2;
+  double sum,t1;
 
   size = ncs_sr->r_size;
   fft_size = ncs_sr->fft_size;
 
   /* Compute FFT of the current estimate. */
   fftw_execute(ncs_sr->fft_forward);
-
-  /* Normalize FFT. */
-  for(i=0;i<(size*fft_size);i++){
-    ncs_sr->u_fft[i][0] = ncs_sr->u_fft[i][0]*ncs_sr->normalization;
-    ncs_sr->u_fft[i][1] = ncs_sr->u_fft[i][1]*ncs_sr->normalization;
-  }
 
   /*
    * FIXME: It seems like there should be some symmetries here that we could
@@ -301,12 +283,11 @@ double ncsSRCalcNoiseContribution(ncsSubRegion *ncs_sr)
       }
       
       t1 = ncs_sr->u_fft[l][0]*ncs_sr->u_fft[l][0] + ncs_sr->u_fft[l][1]*ncs_sr->u_fft[l][1];
-      t2 = ncs_sr->otf_mask[k];
-      sum += t1*t2*t2;
+      sum += t1*ncs_sr->otf_mask_sqr[k];
     }
   }
 
-  return sum;
+  return sum*ncs_sr->normalization;
 }
 
 
@@ -317,24 +298,20 @@ double ncsSRCalcNoiseContribution(ncsSubRegion *ncs_sr)
  */
 void ncsSRCleanup(ncsSubRegion *ncs_sr)
 {
-  int i;
-  
   free(ncs_sr->data);
+  free(ncs_sr->g);
   free(ncs_sr->gamma);
-  free(ncs_sr->otf_mask);
+  free(ncs_sr->otf_mask_sqr);
   free(ncs_sr->t1);
   free(ncs_sr->t2);
   
   lbfgs_free(ncs_sr->u);
-  
-  fftw_destroy_plan(ncs_sr->fft_forward);
-  
-  fftw_free(ncs_sr->u_fft);
 
-  for(i=0;i<(ncs_sr->r_size*ncs_sr->r_size);i++){
-    fftw_free(ncs_sr->u_fft_grad[i]);
-  }
-  free(ncs_sr->u_fft_grad);
+  fftw_destroy_plan(ncs_sr->fft_backward);
+  fftw_destroy_plan(ncs_sr->fft_forward);
+
+  fftw_free(ncs_sr->g_fft);
+  fftw_free(ncs_sr->u_fft);
 
   free(ncs_sr->param);
   
@@ -408,7 +385,7 @@ void ncsSRGetU(ncsSubRegion *ncs_sr, double *u)
  */
 ncsSubRegion *ncsSRInitialize(int r_size)
 {
-  int i,j,fft_size;
+  int i,fft_size;
   ncsSubRegion *ncs_sr;
 
   /* Check that r_size is a divisible by 2. */
@@ -424,7 +401,7 @@ ncsSubRegion *ncsSRInitialize(int r_size)
 
   ncs_sr->data = (double *)malloc(sizeof(double)*r_size*r_size);
   ncs_sr->gamma = (double *)malloc(sizeof(double)*r_size*r_size);
-  ncs_sr->otf_mask = (double *)malloc(sizeof(double)*r_size*r_size);
+  ncs_sr->otf_mask_sqr = (double *)malloc(sizeof(double)*r_size*r_size);
   ncs_sr->t1 = (double *)malloc(sizeof(double)*r_size*r_size);
   ncs_sr->t2 = (double *)malloc(sizeof(double)*r_size*r_size);
   
@@ -433,7 +410,7 @@ ncsSubRegion *ncsSRInitialize(int r_size)
   for(i=0;i<(r_size*r_size);i++){
     ncs_sr->data[i] = 0.0;
     ncs_sr->gamma[i] = 0.0;
-    ncs_sr->otf_mask[i] = 0.0;
+    ncs_sr->otf_mask_sqr[i] = 0.0;
     ncs_sr->t1[i] = 0.0;
     ncs_sr->t2[i] = 0.0;
  
@@ -442,28 +419,16 @@ ncsSubRegion *ncsSRInitialize(int r_size)
 
   fft_size = r_size/2 + 1;
   ncs_sr->fft_size = fft_size; 
-  ncs_sr->normalization = 1.0/((double)r_size);
+  ncs_sr->normalization = 1.0/((double)(r_size*r_size));
 
+  /* Backward FFT for NC gradient calculation. */
+  ncs_sr->g = (double *)fftw_malloc(sizeof(double)*r_size*r_size);
+  ncs_sr->g_fft = (fftw_complex *)fftw_malloc(sizeof(fftw_complex)*r_size*fft_size);
+  ncs_sr->fft_backward = fftw_plan_dft_c2r_2d(r_size, r_size, ncs_sr->g_fft, (double *)ncs_sr->g, FFTW_ESTIMATE);
+  
+  /* Forward FFT. */
   ncs_sr->u_fft = (fftw_complex *)fftw_malloc(sizeof(fftw_complex)*r_size*fft_size);
   ncs_sr->fft_forward = fftw_plan_dft_r2c_2d(r_size, r_size, (double *)ncs_sr->u, ncs_sr->u_fft, FFTW_ESTIMATE);
-
-  /* 
-   * This is an optimization for calculating the noise contribution gradient. For
-   * the gradient calculation we need the FFT of arrays that are all zero except
-   * for a 1.0 at a single point. To save effort we calculate all these FFTs now.
-   */
-  ncs_sr->u_fft_grad = (fftw_complex **)malloc(sizeof(fftw_complex *)*r_size*r_size);
-  for(i=0;i<(r_size*r_size);i++){
-    ncs_sr->u_fft_grad[i] = (fftw_complex *)fftw_malloc(sizeof(fftw_complex)*r_size*fft_size);
-			     
-    ncs_sr->u[i] = 1.0;
-    fftw_execute(ncs_sr->fft_forward);
-    for(j=0;j<(r_size*fft_size);j++){
-      ncs_sr->u_fft_grad[i][j][0] = ncs_sr->u_fft[j][0]*ncs_sr->normalization;
-      ncs_sr->u_fft_grad[i][j][1] = ncs_sr->u_fft[j][1]*ncs_sr->normalization;
-    }
-    ncs_sr->u[i] = 0.0;
-  }
 
   /* L-BFGS parameter initialization. */
   ncs_sr->param = (lbfgs_parameter_t *)malloc(sizeof(lbfgs_parameter_t));
@@ -532,7 +497,7 @@ void ncsSRSetOTFMask(ncsSubRegion *ncs_sr, double *otf_mask)
 
   size = ncs_sr->r_size;
   for(i=0;i<(size*size);i++){
-    ncs_sr->otf_mask[i] = otf_mask[i];
+    ncs_sr->otf_mask_sqr[i] = otf_mask[i]*otf_mask[i];
   }
 }
 
