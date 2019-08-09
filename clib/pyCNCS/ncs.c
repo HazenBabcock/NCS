@@ -222,7 +222,12 @@ void ncsSRCalcNCGradient(ncsSubRegion *ncs_sr, double *gradient)
   size = ncs_sr->r_size;
   fft_size = ncs_sr->fft_size;
 
-  /* Calculate FFT of NC gradient. */
+  /* 
+   * Calculate FFT of NC gradient. 
+   *
+   * The complicated indexing is due to the shape difference of the 
+   * FFT (size x fft_size) versus (size x size).
+   */
   for(i=0;i<size;i++){
     for(j=0;j<fft_size;j++){
       k = i*fft_size+j;
@@ -231,7 +236,7 @@ void ncsSRCalcNCGradient(ncsSubRegion *ncs_sr, double *gradient)
       ncs_sr->g_fft[k][1] = ncs_sr->u_fft[k][1]*t1;
     }
   }
-
+  
   /* IFFT. */
   fftw_execute(ncs_sr->fft_backward);
 
