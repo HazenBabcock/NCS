@@ -214,6 +214,9 @@ class NCSCSubRegion(object):
             if (otf_mask.size != self.r_size*self.r_size):
                 raise NCSCException("OTF size must match sub-region size!")
 
+            if not checkOTFMask(otf_mask):
+                raise NCSCException("OTF does not have the expected symmetry!")
+
         tmp = numpy.fft.fftshift(otf_mask)
         ncs.ncsSRSetOTFMask(self.c_ncs,
                             numpy.ascontiguousarray(tmp, dtype = numpy.float64))
@@ -231,8 +234,19 @@ class NCSCSubRegion(object):
 
         ncs.ncsSRSetU(self.c_ncs,
                       numpy.ascontiguousarray(u, dtype = numpy.float64))
-        
 
+        
+def checkOTFMask(otf_mask):
+    """
+    Verify that the OTF mask has the correct symmetries.
+    """
+    otf_mask_fft = numpy.fft.ifft2(numpy.fft.fftshift(otf_mask))
+    if (numpy.max(numpy.imag(otf_mask_fft)) > 1.0e-12):
+        return False
+    else:
+        return True
+    
+    
 def cReduceNoise(image, gamma, otf_mask, alpha, strict = True):
     """
     Run NCS on an image using pure C algorithm.

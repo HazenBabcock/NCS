@@ -127,7 +127,7 @@ def converged(x, g):
 ## Python specific helper functions.
 
 def createOTFMask():
-    x = numpy.linspace(-5.0, 5.0, num = 16)
+    x = (numpy.arange(16)-8.0)/3.0
     gx = numpy.exp(-x*x)
     rc_filter = 1.0 - numpy.outer(gx, gx)
     rc_filter = rc_filter - numpy.min(rc_filter)

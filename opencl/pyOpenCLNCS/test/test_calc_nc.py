@@ -120,8 +120,8 @@ def test_calc_nc():
     
       # OpenCL
       u = numpy.random.uniform(low = 1.0, high = 10.0, size = (n_pts, n_pts)).astype(dtype = numpy.float32)
-      otf_mask = numpy.random.uniform(size = (n_pts, n_pts)).astype(dtype = numpy.float32)
-      otf_mask_shift = numpy.fft.fftshift(otf_mask)
+      otf_mask_shift = pyRef.createOTFMask()
+
       nc = numpy.zeros(1, dtype = numpy.float32)
 
       u_buffer = cl.Buffer(context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf = u)
@@ -135,6 +135,7 @@ def test_calc_nc():
       queue.finish()
 
       # Reference 1
+      otf_mask = numpy.fft.fftshift(otf_mask_shift.reshape(16, 16))
       ncs_sr = ncsC.NCSCSubRegion(r_size = n_pts)
       ncs_sr.setOTFMask(otf_mask)
       ncs_sr.setU(u)
