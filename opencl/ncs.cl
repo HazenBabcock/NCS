@@ -619,6 +619,20 @@ __kernel void initUFFTGrad(__global float4 *u_fft_grad_r,
     }
 }
 
+/*
+ * Run NCS noise reduction on sub-regions.
+ * 
+ * Note: Any zero or negative values in the sub-regions should be
+ *       set to a small positive value like 1.0.
+ *
+ * data_in - Sub-region data in e-.
+ * g_gamma - Sub-region CMOS variance in units of e-^2.
+ * otf_mask - 16 x 16 array containing the OTF mask.
+ * data_out - Storage for noise corrected sub-regions.
+ * iterations - Number of L-BFGS solver iterations.
+ * status - Status of the solution (good, failed because of X).
+ * alpha - NCS alpha term.
+ */
 __kernel void ncsReduceNoise(__global float4 *data_in,
                              __global float4 *g_gamma,
                              __global float4 *otf_mask,
@@ -665,7 +679,7 @@ __kernel void ncsReduceNoise(__global float4 *data_in,
     /* Initialization. */    
     for (i=0; i<PSIZE; i++){
         data[i] = data_in[i + offset];
-        gamma[i] = g_gamma[i];
+        gamma[i] = g_gamma[i + offset];
         otf_mask_sqr[i] = otf_mask[i] * otf_mask[i];
         u_r[i] = data_in[i + offset];
         u_c[i] = (float4)(0.0, 0.0, 0.0, 0.0);
