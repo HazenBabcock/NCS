@@ -250,6 +250,12 @@ def checkOTFMask(otf_mask):
 def cReduceNoise(image, gamma, otf_mask, alpha, strict = True):
     """
     Run NCS on an image using pure C algorithm.
+
+    image - The image to run NCS on (in units of e-).
+    gamma - CMOS variance (in units of e-).
+    otf_mask - M x M array containing the OTF mask, where M is usually a power
+               of 2, like 16.
+    alpha - NCS alpha term.
     """
     if strict:
         if (otf_mask.shape[0] != otf_mask.shape[1]):

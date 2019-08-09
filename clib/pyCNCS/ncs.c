@@ -25,6 +25,9 @@
  * ncsReduceNoise() 
  *
  * Run NCS noise reduction on an image.
+ * 
+ * Note: Any zero or negative values in the image should be
+ *       set to a small positive value like 1.0.
  *
  * ncs_image - Pre-allocated storage for the NCS image.
  * image - Original image in e-.
