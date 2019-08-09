@@ -108,7 +108,7 @@ def test_ncs_noise_reduction_2():
    n_reps = 10
 
    data = numpy.random.uniform(low = 10.0, high = 20.0, size = (n_reps, n_pts, n_pts)).astype(dtype = numpy.float32)
-   gamma = numpy.random.uniform(low = 2.0, high = 4.0, size = (n_pts, n_pts)).astype(dtype = numpy.float32)
+   gamma = numpy.random.uniform(low = 2.0, high = 4.0, size = (n_reps, n_pts, n_pts)).astype(dtype = numpy.float32)
    otf_mask_shift = pyRef.createOTFMask()
 
    # OpenCL Setup.
@@ -152,7 +152,7 @@ def test_ncs_noise_reduction_2():
    ncs_sr = ncsC.NCSCSubRegion(r_size = n_pts)
 
    for i in range(n_reps):
-      ncs_sr.newRegion(data[i,:,:], gamma)
+      ncs_sr.newRegion(data[i,:,:], gamma[i,:,:])
       ncs_sr.setOTFMask(otf_mask)
       ref_u[i,:,:] = ncs_sr.cSolve(alpha, verbose = False)
 
