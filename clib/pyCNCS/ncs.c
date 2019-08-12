@@ -307,17 +307,17 @@ double ncsSRCalcNoiseContribution(ncsSubRegion *ncs_sr)
 void ncsSRCleanup(ncsSubRegion *ncs_sr)
 {
   free(ncs_sr->data);
-  free(ncs_sr->g);
   free(ncs_sr->gamma);
   free(ncs_sr->otf_mask_sqr);
   free(ncs_sr->t1);
   free(ncs_sr->t2);
-  
+
   lbfgs_free(ncs_sr->u);
 
   fftw_destroy_plan(ncs_sr->fft_backward);
   fftw_destroy_plan(ncs_sr->fft_forward);
 
+  fftw_free(ncs_sr->g);
   fftw_free(ncs_sr->g_fft);
   fftw_free(ncs_sr->u_fft);
 
@@ -395,7 +395,7 @@ ncsSubRegion *ncsSRInitialize(int r_size)
 {
   int i,fft_size;
   ncsSubRegion *ncs_sr;
-
+  
   /* Check that r_size is a divisible by 2. */
   if ((r_size%2)!=0){
     printf("ROI size must be divisible by 2!\n");
