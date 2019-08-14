@@ -9,7 +9,7 @@ Speedup is relative to the clib version of NCS on the same computer.
 
 * Nvidia Tesla K20Xm - 5x speedup.
 * Intel Haswell-ULT Integrated Graphics Controller - 4.2x speedup.
-* Nvidia - 1.2x speedup.
+* Nvidia GeForce GT 1030 - 1.2x speedup.
 
 ## Example Usage ##
 
