@@ -188,5 +188,5 @@ if (__name__ == "__main__"):
    args = parser.parse_args()
    
    profile(args.reps)
-   profile_v0(args.reps)
+#   profile_v0(args.reps)
    profileNCSC(args.reps)
