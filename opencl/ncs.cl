@@ -444,7 +444,7 @@ void vecscaleInplace(float4 *v1, float s1)
 {
     float4 t1 = (float4)(s1, s1, s1, s1);
     for(int i=0; i<PSIZE; i++){
-        v1[i] = v1[i]*s1;
+        v1[i] = v1[i]*t1;
     }
 }
 
@@ -551,7 +551,7 @@ void calcNCGradientIFFT(float4 *u_fft_r,
 
 float calcNoiseContribution(float4 *u_fft_r, float4 *u_fft_c, float4 *otf_mask_sqr)
 {
-    float sum;
+    float sum = 0.0f;
     float4 t1;
     
     for(int i=0; i<PSIZE; i++){
