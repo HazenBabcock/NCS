@@ -76,17 +76,17 @@
 // 4 point complex FFT
 void fft4(float4 x_r, float4 x_c, float4 *y_r, float4 *y_c)
 {
-    float t1_r = x_r.s0 + x_r.s2;
-    float t1_c = x_c.s0 + x_c.s2;
+    float t1_r = x_r.x + x_r.z;
+    float t1_c = x_c.x + x_c.z;
     
-    float t2_r = x_r.s0 - x_r.s2;
-    float t2_c = x_c.s0 - x_c.s2;
+    float t2_r = x_r.x - x_r.z;
+    float t2_c = x_c.x - x_c.z;
 
-    float t3_r = x_r.s1 + x_r.s3;
-    float t3_c = x_c.s1 + x_c.s3;
+    float t3_r = x_r.y + x_r.w;
+    float t3_c = x_c.y + x_c.w;
 
-    float t4_r = x_r.s1 - x_r.s3;
-    float t4_c = x_c.s1 - x_c.s3;
+    float t4_r = x_r.y - x_r.w;
+    float t4_c = x_c.y - x_c.w;
  
     y_r[0].s0 = t1_r + t3_r;
     y_r[0].s1 = t2_r + t4_c;
@@ -103,17 +103,17 @@ void fft4(float4 x_r, float4 x_c, float4 *y_r, float4 *y_c)
 // 4 point complex IFFT
 void ifft4(float4 x_r, float4 x_c, float4 *y_r, float4 *y_c)
 {
-    float t1_r = x_r.s0 + x_r.s2;
-    float t1_c = x_c.s0 + x_c.s2;
+    float t1_r = x_r.x + x_r.z;
+    float t1_c = x_c.x + x_c.z;
     
-    float t2_r = x_r.s0 - x_r.s2;
-    float t2_c = x_c.s0 - x_c.s2;
+    float t2_r = x_r.x - x_r.z;
+    float t2_c = x_c.x - x_c.z;
 
-    float t3_r = x_r.s1 + x_r.s3;
-    float t3_c = x_c.s1 + x_c.s3;
+    float t3_r = x_r.y + x_r.w;
+    float t3_c = x_c.y + x_c.w;
 
-    float t4_r = x_r.s1 - x_r.s3;
-    float t4_c = x_c.s1 - x_c.s3;
+    float t4_r = x_r.y - x_r.w;
+    float t4_c = x_c.y - x_c.w;
  
     y_r[0].s0 = t1_r + t3_r;
     y_r[0].s1 = t2_r - t4_c;
@@ -125,8 +125,8 @@ void ifft4(float4 x_r, float4 x_c, float4 *y_r, float4 *y_c)
     y_c[0].s2 = t1_c - t3_c;
     y_c[0].s3 = t2_c - t4_r;
     
-    y_r[0] = y_r[0]*(float)0.25;
-    y_c[0] = y_c[0]*(float)0.25;
+    y_r[0] = y_r[0]*0.25f;
+    y_c[0] = y_c[0]*0.25f;
 }
 
 
@@ -141,17 +141,17 @@ void fft8(float4 *x_r, float4 *x_c, float4 *y_r, float4 *y_c)
     float4 f42_c;
      
     // 4 point FFT.
-    t_r = (float4)(x_r[0].s0, x_r[0].s2, x_r[1].s0, x_r[1].s2);
-    t_c = (float4)(x_c[0].s0, x_c[0].s2, x_c[1].s0, x_c[1].s2);    
+    t_r = (float4)(x_r[0].x, x_r[0].z, x_r[1].x, x_r[1].z);
+    t_c = (float4)(x_c[0].x, x_c[0].z, x_c[1].x, x_c[1].z);    
     fft4(t_r, t_c, &f41_r, &f41_c);
 
-    t_r = (float4)(x_r[0].s1, x_r[0].s3, x_r[1].s1, x_r[1].s3);
-    t_c = (float4)(x_c[0].s1, x_c[0].s3, x_c[1].s1, x_c[1].s3);
+    t_r = (float4)(x_r[0].y, x_r[0].w, x_r[1].y, x_r[1].w);
+    t_c = (float4)(x_c[0].y, x_c[0].w, x_c[1].y, x_c[1].w);
     fft4(t_r, t_c, &f42_r, &f42_c);
     
     // Shift and add.
-    float4 r1 = (float4)(1.0, 7.07106781e-01, 0.0, -7.07106781e-01);
-    float4 c1 = (float4)(0.0, 7.07106781e-01, 1.0,  7.07106781e-01);
+    float4 r1 = (float4)(1.0f, 7.07106781e-01f, 0.0f, -7.07106781e-01f);
+    float4 c1 = (float4)(0.0f, 7.07106781e-01f, 1.0f,  7.07106781e-01f);
     y_r[0] = f41_r + f42_r * r1 + f42_c * c1;
     y_c[0] = f41_c + f42_c * r1 - f42_r * c1;
     y_r[1] = f41_r - f42_r * r1 - f42_c * c1;
@@ -170,26 +170,26 @@ void ifft8(float4 *x_r, float4 *x_c, float4 *y_r, float4 *y_c)
     float4 f42_c;
      
     // 4 point IFFT.
-    t_r = (float4)(x_r[0].s0, x_r[0].s2, x_r[1].s0, x_r[1].s2);
-    t_c = (float4)(x_c[0].s0, x_c[0].s2, x_c[1].s0, x_c[1].s2);    
+    t_r = (float4)(x_r[0].x, x_r[0].z, x_r[1].x, x_r[1].z);
+    t_c = (float4)(x_c[0].x, x_c[0].z, x_c[1].x, x_c[1].z);    
     ifft4(t_r, t_c, &f41_r, &f41_c);
 
-    t_r = (float4)(x_r[0].s1, x_r[0].s3, x_r[1].s1, x_r[1].s3);
-    t_c = (float4)(x_c[0].s1, x_c[0].s3, x_c[1].s1, x_c[1].s3);
+    t_r = (float4)(x_r[0].y, x_r[0].w, x_r[1].y, x_r[1].w);
+    t_c = (float4)(x_c[0].y, x_c[0].w, x_c[1].y, x_c[1].w);
     ifft4(t_r, t_c, &f42_r, &f42_c);
     
     // Shift and add.
-    float4 r1 = (float4)(1.0,  7.07106781e-01,  0.0, -7.07106781e-01);
-    float4 c1 = (float4)(0.0, -7.07106781e-01, -1.0, -7.07106781e-01);
+    float4 r1 = (float4)(1.0f,  7.07106781e-01f,  0.0f, -7.07106781e-01f);
+    float4 c1 = (float4)(0.0f, -7.07106781e-01f, -1.0f, -7.07106781e-01f);
     y_r[0] = f41_r + f42_r * r1 + f42_c * c1;
     y_c[0] = f41_c + f42_c * r1 - f42_r * c1;
     y_r[1] = f41_r - f42_r * r1 - f42_c * c1;
     y_c[1] = f41_c - f42_c * r1 + f42_r * c1;
     
-    y_r[0] = y_r[0]*(float)0.5;
-    y_c[0] = y_c[0]*(float)0.5;
-    y_r[1] = y_r[1]*(float)0.5;
-    y_c[1] = y_c[1]*(float)0.5;
+    y_r[0] = y_r[0]*0.5f;
+    y_c[0] = y_c[0]*0.5f;
+    y_r[1] = y_r[1]*0.5f;
+    y_c[1] = y_c[1]*0.5f;
 
 }
 
@@ -205,28 +205,28 @@ void fft16(float4 *x_r, float4 *x_c, float4 *y_r, float4 *y_c)
     float4 f42_c[2];
      
     // 8 point FFT.
-    t_r[0] = (float4)(x_r[0].s0, x_r[0].s2, x_r[1].s0, x_r[1].s2);
-    t_c[0] = (float4)(x_c[0].s0, x_c[0].s2, x_c[1].s0, x_c[1].s2);    
-    t_r[1] = (float4)(x_r[2].s0, x_r[2].s2, x_r[3].s0, x_r[3].s2);
-    t_c[1] = (float4)(x_c[2].s0, x_c[2].s2, x_c[3].s0, x_c[3].s2);    
+    t_r[0] = (float4)(x_r[0].x, x_r[0].z, x_r[1].x, x_r[1].z);
+    t_c[0] = (float4)(x_c[0].x, x_c[0].z, x_c[1].x, x_c[1].z);    
+    t_r[1] = (float4)(x_r[2].x, x_r[2].z, x_r[3].x, x_r[3].z);
+    t_c[1] = (float4)(x_c[2].x, x_c[2].z, x_c[3].x, x_c[3].z);    
     fft8(t_r, t_c, f41_r, f41_c);
 
-    t_r[0] = (float4)(x_r[0].s1, x_r[0].s3, x_r[1].s1, x_r[1].s3);
-    t_c[0] = (float4)(x_c[0].s1, x_c[0].s3, x_c[1].s1, x_c[1].s3);
-    t_r[1] = (float4)(x_r[2].s1, x_r[2].s3, x_r[3].s1, x_r[3].s3);
-    t_c[1] = (float4)(x_c[2].s1, x_c[2].s3, x_c[3].s1, x_c[3].s3);
+    t_r[0] = (float4)(x_r[0].y, x_r[0].w, x_r[1].y, x_r[1].w);
+    t_c[0] = (float4)(x_c[0].y, x_c[0].w, x_c[1].y, x_c[1].w);
+    t_r[1] = (float4)(x_r[2].y, x_r[2].w, x_r[3].y, x_r[3].w);
+    t_c[1] = (float4)(x_c[2].y, x_c[2].w, x_c[3].y, x_c[3].w);
     fft8(t_r, t_c, f42_r, f42_c);
         
     // Shift and add.
-    float4 r1 = (float4)(1.0, 9.23879533e-01, 7.07106781e-01, 3.82683432e-01);
-    float4 c1 = (float4)(0.0, 3.82683432e-01, 7.07106781e-01, 9.23879533e-01);
+    float4 r1 = (float4)(1.0f, 9.23879533e-01f, 7.07106781e-01f, 3.82683432e-01f);
+    float4 c1 = (float4)(0.0f, 3.82683432e-01f, 7.07106781e-01f, 9.23879533e-01f);
     y_r[0] = f41_r[0] + f42_r[0] * r1 + f42_c[0] * c1;
     y_c[0] = f41_c[0] + f42_c[0] * r1 - f42_r[0] * c1;    
     y_r[2] = f41_r[0] - f42_r[0] * r1 - f42_c[0] * c1;
     y_c[2] = f41_c[0] - f42_c[0] * r1 + f42_r[0] * c1;    
-    
-    r1 = (float4)(0.0, -3.82683432e-01, -7.07106781e-01, -9.23879533e-01);
-    c1 = (float4)(1.0,  9.23879533e-01,  7.07106781e-01,  3.82683432e-01);
+
+    r1 = (float4)(0.0f, -3.82683432e-01f, -7.07106781e-01f, -9.23879533e-01f);
+    c1 = (float4)(1.0f,  9.23879533e-01f,  7.07106781e-01f,  3.82683432e-01f);
     y_r[1] = f41_r[1] + f42_r[1] * r1 + f42_c[1] * c1;
     y_c[1] = f41_c[1] + f42_c[1] * r1 - f42_r[1] * c1;    
     y_r[3] = f41_r[1] - f42_r[1] * r1 - f42_c[1] * c1;
@@ -245,36 +245,36 @@ void ifft16(float4 *x_r, float4 *x_c, float4 *y_r, float4 *y_c)
     float4 f42_c[2];
      
     // 8 point IFFT.
-    t_r[0] = (float4)(x_r[0].s0, x_r[0].s2, x_r[1].s0, x_r[1].s2);
-    t_c[0] = (float4)(x_c[0].s0, x_c[0].s2, x_c[1].s0, x_c[1].s2);    
-    t_r[1] = (float4)(x_r[2].s0, x_r[2].s2, x_r[3].s0, x_r[3].s2);
-    t_c[1] = (float4)(x_c[2].s0, x_c[2].s2, x_c[3].s0, x_c[3].s2);    
+    t_r[0] = (float4)(x_r[0].x, x_r[0].z, x_r[1].x, x_r[1].z);
+    t_c[0] = (float4)(x_c[0].x, x_c[0].z, x_c[1].x, x_c[1].z);    
+    t_r[1] = (float4)(x_r[2].x, x_r[2].z, x_r[3].x, x_r[3].z);
+    t_c[1] = (float4)(x_c[2].x, x_c[2].z, x_c[3].x, x_c[3].z);    
     ifft8(t_r, t_c, f41_r, f41_c);
 
-    t_r[0] = (float4)(x_r[0].s1, x_r[0].s3, x_r[1].s1, x_r[1].s3);
-    t_c[0] = (float4)(x_c[0].s1, x_c[0].s3, x_c[1].s1, x_c[1].s3);
-    t_r[1] = (float4)(x_r[2].s1, x_r[2].s3, x_r[3].s1, x_r[3].s3);
-    t_c[1] = (float4)(x_c[2].s1, x_c[2].s3, x_c[3].s1, x_c[3].s3);
+    t_r[0] = (float4)(x_r[0].y, x_r[0].w, x_r[1].y, x_r[1].w);
+    t_c[0] = (float4)(x_c[0].y, x_c[0].w, x_c[1].y, x_c[1].w);
+    t_r[1] = (float4)(x_r[2].y, x_r[2].w, x_r[3].y, x_r[3].w);
+    t_c[1] = (float4)(x_c[2].y, x_c[2].w, x_c[3].y, x_c[3].w);
     ifft8(t_r, t_c, f42_r, f42_c);
         
     // Shift and add.
-    float4 r1 = (float4)(1.0,  9.23879533e-01,  7.07106781e-01,  3.82683432e-01);
-    float4 c1 = (float4)(0.0, -3.82683432e-01, -7.07106781e-01, -9.23879533e-01);
+    float4 r1 = (float4)(1.0f,  9.23879533e-01f,  7.07106781e-01f,  3.82683432e-01f);
+    float4 c1 = (float4)(0.0f, -3.82683432e-01f, -7.07106781e-01f, -9.23879533e-01f);
     y_r[0] = f41_r[0] + f42_r[0] * r1 + f42_c[0] * c1;
     y_c[0] = f41_c[0] + f42_c[0] * r1 - f42_r[0] * c1;    
     y_r[2] = f41_r[0] - f42_r[0] * r1 - f42_c[0] * c1;
     y_c[2] = f41_c[0] - f42_c[0] * r1 + f42_r[0] * c1;    
     
-    r1 = (float4)( 0.0, -3.82683432e-01, -7.07106781e-01, -9.23879533e-01);
-    c1 = (float4)(-1.0, -9.23879533e-01, -7.07106781e-01, -3.82683432e-01);
+    r1 = (float4)( 0.0f, -3.82683432e-01f, -7.07106781e-01f, -9.23879533e-01f);
+    c1 = (float4)(-1.0f, -9.23879533e-01f, -7.07106781e-01f, -3.82683432e-01f);
     y_r[1] = f41_r[1] + f42_r[1] * r1 + f42_c[1] * c1;
     y_c[1] = f41_c[1] + f42_c[1] * r1 - f42_r[1] * c1;    
     y_r[3] = f41_r[1] - f42_r[1] * r1 - f42_c[1] * c1;
     y_c[3] = f41_c[1] - f42_c[1] * r1 + f42_r[1] * c1;
     
     for(int i = 0; i<4; i++){
-        y_r[i] = y_r[i]*(float)0.5;
-        y_c[i] = y_c[i]*(float)0.5;    
+        y_r[i] = y_r[i]*0.5f;
+        y_c[i] = y_c[i]*0.5f;    
     }
 }
 
@@ -298,28 +298,28 @@ void fft_16x16(float4 *x_r, float4 *x_c, float4 *y_r, float4 *y_c)
     
         // Convert columns to rows.
         for(int j=0; j<4; j++){
-            t1_r[j].s0 = y1_r[(4*j+0)*16+i];
-            t1_r[j].s1 = y1_r[(4*j+1)*16+i];
-            t1_r[j].s2 = y1_r[(4*j+2)*16+i];
-            t1_r[j].s3 = y1_r[(4*j+3)*16+i];
-            t1_c[j].s0 = y1_c[(4*j+0)*16+i];
-            t1_c[j].s1 = y1_c[(4*j+1)*16+i];
-            t1_c[j].s2 = y1_c[(4*j+2)*16+i];
-            t1_c[j].s3 = y1_c[(4*j+3)*16+i];    
+            t1_r[j].x = y1_r[(4*j+0)*16+i];
+            t1_r[j].y = y1_r[(4*j+1)*16+i];
+            t1_r[j].z = y1_r[(4*j+2)*16+i];
+            t1_r[j].w = y1_r[(4*j+3)*16+i];
+            t1_c[j].x = y1_c[(4*j+0)*16+i];
+            t1_c[j].y = y1_c[(4*j+1)*16+i];
+            t1_c[j].z = y1_c[(4*j+2)*16+i];
+            t1_c[j].w = y1_c[(4*j+3)*16+i];    
         }
         
         fft16(t1_r, t1_c, t1_r, t1_c);
         
         // Reverse conversion.
         for(int j=0; j<4; j++){
-            y1_r[(4*j+0)*16+i] = t1_r[j].s0;
-            y1_r[(4*j+1)*16+i] = t1_r[j].s1;
-            y1_r[(4*j+2)*16+i] = t1_r[j].s2;
-            y1_r[(4*j+3)*16+i] = t1_r[j].s3;
-            y1_c[(4*j+0)*16+i] = t1_c[j].s0;
-            y1_c[(4*j+1)*16+i] = t1_c[j].s1;
-            y1_c[(4*j+2)*16+i] = t1_c[j].s2;
-            y1_c[(4*j+3)*16+i] = t1_c[j].s3;            
+            y1_r[(4*j+0)*16+i] = t1_r[j].x;
+            y1_r[(4*j+1)*16+i] = t1_r[j].y;
+            y1_r[(4*j+2)*16+i] = t1_r[j].z;
+            y1_r[(4*j+3)*16+i] = t1_r[j].w;
+            y1_c[(4*j+0)*16+i] = t1_c[j].x;
+            y1_c[(4*j+1)*16+i] = t1_c[j].y;
+            y1_c[(4*j+2)*16+i] = t1_c[j].z;
+            y1_c[(4*j+3)*16+i] = t1_c[j].w;            
         }        
     }
 }
@@ -341,28 +341,28 @@ void ifft_16x16(float4 *x_r, float4 *x_c, float4 *y_r, float4 *y_c)
     
         // Convert columns to rows.
         for(int j=0; j<4; j++){
-            t1_r[j].s0 = x1_r[(4*j+0)*16+i];
-            t1_r[j].s1 = x1_r[(4*j+1)*16+i];
-            t1_r[j].s2 = x1_r[(4*j+2)*16+i];
-            t1_r[j].s3 = x1_r[(4*j+3)*16+i];
-            t1_c[j].s0 = x1_c[(4*j+0)*16+i];
-            t1_c[j].s1 = x1_c[(4*j+1)*16+i];
-            t1_c[j].s2 = x1_c[(4*j+2)*16+i];
-            t1_c[j].s3 = x1_c[(4*j+3)*16+i];    
+            t1_r[j].x = x1_r[(4*j+0)*16+i];
+            t1_r[j].y = x1_r[(4*j+1)*16+i];
+            t1_r[j].z = x1_r[(4*j+2)*16+i];
+            t1_r[j].w = x1_r[(4*j+3)*16+i];
+            t1_c[j].x = x1_c[(4*j+0)*16+i];
+            t1_c[j].y = x1_c[(4*j+1)*16+i];
+            t1_c[j].z = x1_c[(4*j+2)*16+i];
+            t1_c[j].w = x1_c[(4*j+3)*16+i];    
         }
         
         ifft16(t1_r, t1_c, t1_r, t1_c);
         
         // Reverse conversion.
         for(int j=0; j<4; j++){
-            y1_r[(4*j+0)*16+i] = t1_r[j].s0;
-            y1_r[(4*j+1)*16+i] = t1_r[j].s1;
-            y1_r[(4*j+2)*16+i] = t1_r[j].s2;
-            y1_r[(4*j+3)*16+i] = t1_r[j].s3;
-            y1_c[(4*j+0)*16+i] = t1_c[j].s0;
-            y1_c[(4*j+1)*16+i] = t1_c[j].s1;
-            y1_c[(4*j+2)*16+i] = t1_c[j].s2;
-            y1_c[(4*j+3)*16+i] = t1_c[j].s3;            
+            y1_r[(4*j+0)*16+i] = t1_r[j].x;
+            y1_r[(4*j+1)*16+i] = t1_r[j].y;
+            y1_r[(4*j+2)*16+i] = t1_r[j].z;
+            y1_r[(4*j+3)*16+i] = t1_r[j].w;
+            y1_c[(4*j+0)*16+i] = t1_c[j].x;
+            y1_c[(4*j+1)*16+i] = t1_c[j].y;
+            y1_c[(4*j+2)*16+i] = t1_c[j].z;
+            y1_c[(4*j+3)*16+i] = t1_c[j].w;            
         }        
     }
     
