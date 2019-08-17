@@ -88,15 +88,15 @@ void fft4(float4 x_r, float4 x_c, float4 *y_r, float4 *y_c)
     float t4_r = x_r.y - x_r.w;
     float t4_c = x_c.y - x_c.w;
  
-    y_r[0].s0 = t1_r + t3_r;
-    y_r[0].s1 = t2_r + t4_c;
-    y_r[0].s2 = t1_r - t3_r;
-    y_r[0].s3 = t2_r - t4_c;
+    y_r[0].x = t1_r + t3_r;
+    y_r[0].y = t2_r + t4_c;
+    y_r[0].z = t1_r - t3_r;
+    y_r[0].w = t2_r - t4_c;
 
-    y_c[0].s0 = t1_c + t3_c;
-    y_c[0].s1 = t2_c - t4_r;
-    y_c[0].s2 = t1_c - t3_c;
-    y_c[0].s3 = t2_c + t4_r;
+    y_c[0].x = t1_c + t3_c;
+    y_c[0].y = t2_c - t4_r;
+    y_c[0].z = t1_c - t3_c;
+    y_c[0].w = t2_c + t4_r;
 }
 
 
@@ -115,15 +115,15 @@ void ifft4(float4 x_r, float4 x_c, float4 *y_r, float4 *y_c)
     float t4_r = x_r.y - x_r.w;
     float t4_c = x_c.y - x_c.w;
  
-    y_r[0].s0 = t1_r + t3_r;
-    y_r[0].s1 = t2_r - t4_c;
-    y_r[0].s2 = t1_r - t3_r;
-    y_r[0].s3 = t2_r + t4_c;
+    y_r[0].x = t1_r + t3_r;
+    y_r[0].y = t2_r - t4_c;
+    y_r[0].z = t1_r - t3_r;
+    y_r[0].w = t2_r + t4_c;
 
-    y_c[0].s0 = t1_c + t3_c;
-    y_c[0].s1 = t2_c + t4_r;
-    y_c[0].s2 = t1_c - t3_c;
-    y_c[0].s3 = t2_c - t4_r;
+    y_c[0].x = t1_c + t3_c;
+    y_c[0].y = t2_c + t4_r;
+    y_c[0].z = t1_c - t3_c;
+    y_c[0].w = t2_c - t4_r;
     
     y_r[0] = y_r[0]*0.25f;
     y_c[0] = y_c[0]*0.25f;
