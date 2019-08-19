@@ -603,7 +603,11 @@ void vecsub(__local float4 *v1, __local float4 *v2, __local float4 *v3, int lid)
  *
  ****************/
 
-void calcLLGradient(__local float4 *u, __local float4 *data, __local float4 *gamma, __local float4 *gradient, int lid)
+void calcLLGradient(__local float4 *u,
+                    __local float4 *data,
+		    __local float4 *gamma,
+		    __local float4 *gradient,
+		    int lid)
 {
     int i = lid*4;
     float4 t1;
@@ -629,10 +633,14 @@ void calcLLGradient(__local float4 *u, __local float4 *data, __local float4 *gam
     gradient[i] = 1.0f - t1/t2;
 }
 
-void calcLogLikelihood(__local float *w1, __local float4 *u, __local float4 *data, __local float4 *gamma, int lid)
+void calcLogLikelihood(__local float *w1,
+                       __local float4 *u,
+		       __local float4 *data,
+		       __local float4 *gamma,
+		       int lid)
 {
     int i = lid*4;
-    float4 sum = (float4)(0.0, 0.0, 0.0, 0.0);
+    float4 sum = (float4)(0.0f, 0.0f, 0.0f, 0.0f);
     float4 t1;
     float4 t2;
 
@@ -679,40 +687,80 @@ void calcLogLikelihood(__local float *w1, __local float4 *u, __local float4 *dat
  *  2. The u_fft_r and u_fft_c parameters must also be the
  *     FT of a real valued image.
  */
- /*
-void calcNCGradientIFFT(float4 *u_fft_r, 
-                        float4 *u_fft_c, 
-                        float4 *otf_mask_sqr,
-                        float4 *gradient)
+void calcNCGradientIFFT(__local float4 *w1,
+                        __local float4 *w2,
+			__local float4 *w3,
+                        __local float4 *u_fft_r, 
+                        __local float4 *u_fft_c, 
+                        __local float4 *otf_mask_sqr,
+                        __local float4 *gradient,
+			int lid)
 {
-    int i;
+    int i = lid*4;
+    
     float4 t1;
-    float4 u_r[PSIZE];
-    float4 u_c[PSIZE];
-    float4 t2[PSIZE];
 
-    for(i=0; i<PSIZE; i++){
-        t1 = 2.0f*otf_mask_sqr[i];
-        u_r[i] = t1*u_fft_r[i];
-        u_c[i] = t1*u_fft_c[i];
-    }
+    t1 = 2.0f*otf_mask_sqr[i];
+    w1[i] = t1*u_fft_r[i];
+    w2[i] = t1*u_fft_c[i];
 
-    ifft_16x16(u_r, u_c, gradient, t2);
+    i += 1;
+    t1 = 2.0f*otf_mask_sqr[i];
+    w1[i] = t1*u_fft_r[i];
+    w2[i] = t1*u_fft_c[i];
+
+    i += 1;
+    t1 = 2.0f*otf_mask_sqr[i];
+    w1[i] = t1*u_fft_r[i];
+    w2[i] = t1*u_fft_c[i];
+
+    i += 1;
+    t1 = 2.0f*otf_mask_sqr[i];
+    w1[i] = t1*u_fft_r[i];
+    w2[i] = t1*u_fft_c[i];
+
+    barrier(CLK_LOCAL_MEM_FENCE);
+    
+    ifft_16x16_wg16(w1, w2, gradient, w3, lid);
 }
-*/
 
-float calcNoiseContribution(float4 *u_fft_r, float4 *u_fft_c, float4 *otf_mask_sqr)
+void calcNoiseContribution(__local float *w1,
+                           __local float4 *u_fft_r,
+			   __local float4 *u_fft_c,
+			   __local float4 *otf_mask_sqr,
+			   int lid)
 {
-    float sum = 0.0f;
+    int i = lid*4;
+    float4 sum = (float4)(0.0f, 0.0f, 0.0f, 0.0f);
     float4 t1;
     
-    for(int i=0; i<PSIZE; i++){
-        t1 = u_fft_r[i]*u_fft_r[i] + u_fft_c[i]*u_fft_c[i];
-        t1 = t1*otf_mask_sqr[i];
-        sum += t1.s0 + t1.s1 + t1.s2 + t1.s3;
+    t1 = u_fft_r[i]*u_fft_r[i] + u_fft_c[i]*u_fft_c[i];
+    sum += t1*otf_mask_sqr[i];
+
+    i += 1;
+    t1 = u_fft_r[i]*u_fft_r[i] + u_fft_c[i]*u_fft_c[i];
+    sum += t1*otf_mask_sqr[i];
+
+    i += 1;
+    t1 = u_fft_r[i]*u_fft_r[i] + u_fft_c[i]*u_fft_c[i];
+    sum += t1*otf_mask_sqr[i];
+
+    i += 1;
+    t1 = u_fft_r[i]*u_fft_r[i] + u_fft_c[i]*u_fft_c[i];
+    sum += t1*otf_mask_sqr[i];
+
+    w1[lid] = sum.x + sum.y + sum.z + sum.w;
+
+    barrier(CLK_LOCAL_MEM_FENCE);
+
+    if(lid == 0){
+    	for(i=1; i<16; i++){
+	   w1[0] += w1[i];
+	}
+	w1[0] = w1[0] * (1.0f/(4.0f*PSIZE));
     }
 
-    return sum*(float)(1.0/(4.0*PSIZE));
+    barrier(CLK_LOCAL_MEM_FENCE);
 }
 
 
