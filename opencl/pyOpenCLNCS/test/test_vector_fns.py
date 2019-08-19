@@ -89,7 +89,7 @@ __kernel void vecisEqual_test(__global float4 *g_v1,
     int lid = get_local_id(0);
     int i = lid*4;
 
-    __local float w1[16];
+    __local int w1[16];
     __local float4 v1[PSIZE];
     __local float4 v2[PSIZE];
       

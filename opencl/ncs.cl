@@ -46,11 +46,8 @@
 
 /*
  * The problem size is (16*16)/4 or 256/4.
- *
- * This is changeable to make easier at some point in the future
- * to use a different ROI size. However this would also involve writing
- * the appropriate 2D FFT.
- */ 
+ */
+#define ASIZE 16
 #define PSIZE 64
 
 /* L-BFGS solver parameters. */
@@ -515,7 +512,7 @@ void vecdot(__local float *w1, __local float4 *v1, __local float4 *v2, int lid)
 }
 
 /* Returns 0 or a positive integer as the first element of w1. */
-void vecisEqual(__local float *w1, __local float4 *v1, __local float4 *v2, int lid)
+void vecisEqual(__local int *w1, __local float4 *v1, __local float4 *v2, int lid)
 {
     int i = lid*4;
     int sum = 0;
@@ -768,23 +765,32 @@ void calcNoiseContribution(__local float *w1,
  * L-BFGS functions.
  ******************/
 
-/*
-int converged(float4 *x, float4 *g)
+void converged(__local int *w1,
+               __local float *w2,
+	       __local float4 *x,
+	       __local float4 *g,
+	       int lid)
 {
-    float xnorm = fmax(vecnorm(x), 1.0f);
-    float gnorm = vecnorm(g);
-    if ((gnorm/xnorm) > EPSILON){
-        return 0;
+    float xnorm;
+    float gnorm;
+    
+    vecnorm(w2, x, lid); 
+    if (lid == 0){
+        xnorm = fmax(w2[0], 1.0f);
     }
-    else{
-        return 1;
-    }
-}
-*/
 
-int moduloM(int i)
-{
-    return i & (M-1);
+    vecnorm(w2, g, lid);
+    if (lid == 0){
+        gnorm = w2[0];
+	if ((gnorm/xnorm) > EPSILON){
+	    w1[0] = 0;
+        }
+        else{
+            w1[0] = 1;
+        }
+    }
+
+    barrier(CLK_LOCAL_MEM_FENCE);
 }
 
 
