@@ -28,6 +28,8 @@ __kernel void converged_test(__global float4 *g_v1,
         v2[i+j] = g_v2[i+j];
     }
 
+    barrier(CLK_LOCAL_MEM_FENCE);
+
     converged(w1, w2, v1, v2, lid);
     *g_conv = w1[0];
 }
@@ -69,7 +71,7 @@ def test_converged_1():
    v2_buffer = cl.Buffer(context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf = v2)
    v3_buffer = cl.Buffer(context, cl.mem_flags.WRITE_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf = v3)
    
-   program.converged_test(queue, (1,), (1,), v1_buffer, v2_buffer, v3_buffer)
+   program.converged_test(queue, (16,), (16,), v1_buffer, v2_buffer, v3_buffer)
    cl.enqueue_copy(queue, v3, v3_buffer).wait()
    queue.finish()
    
@@ -85,7 +87,7 @@ def test_converged_2():
    v2_buffer = cl.Buffer(context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf = v2)
    v3_buffer = cl.Buffer(context, cl.mem_flags.WRITE_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf = v3)
    
-   program.converged_test(queue, (1,), (1,), v1_buffer, v2_buffer, v3_buffer)
+   program.converged_test(queue, (16,), (16,), v1_buffer, v2_buffer, v3_buffer)
    cl.enqueue_copy(queue, v3, v3_buffer).wait()
    queue.finish()
 
@@ -101,7 +103,7 @@ def test_converged_3():
    v2_buffer = cl.Buffer(context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf = v2)
    v3_buffer = cl.Buffer(context, cl.mem_flags.WRITE_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf = v3)
    
-   program.converged_test(queue, (1,), (1,), v1_buffer, v2_buffer, v3_buffer)
+   program.converged_test(queue, (16,), (16,), v1_buffer, v2_buffer, v3_buffer)
    cl.enqueue_copy(queue, v3, v3_buffer).wait()
    queue.finish()
    

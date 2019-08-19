@@ -46,6 +46,9 @@
 
 /*
  * The problem size is (16*16)/4 or 256/4.
+ *
+ * This matches the size of the FFT so changing these would involve writing
+ * a different size FFT, etc..
  */
 #define ASIZE 16
 #define PSIZE 64
@@ -779,6 +782,8 @@ void converged(__local int *w1,
         xnorm = fmax(w2[0], 1.0f);
     }
 
+    barrier(CLK_LOCAL_MEM_FENCE);
+    
     vecnorm(w2, g, lid);
     if (lid == 0){
         gnorm = w2[0];
