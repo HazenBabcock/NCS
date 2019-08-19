@@ -1,6 +1,8 @@
 /*
  * OpenCL kernel code for NCS.
  *
+ * Important note : This will only work correctly with 16 work items per work group.
+ *
  * Key resources that I used in this implementation:
  *
  * 1) The book "OpenCL In Action" by Matthew Scarpino.
@@ -374,85 +376,133 @@ void ifft_16x16(float4 *x_r, float4 *x_c, float4 *y_r, float4 *y_c)
 
 /******************
  * Vector functions.
+ *
+ * These are all designed on vectors with 64 float4 elements and
+ * lid values in the range (0 - 15).
+ *
  ******************/
 
-void veccopy(float4 *v1, float4 *v2)
+void veccopy(__local float4 *v1, __local float4 *v2, int lid)
 {
-    for(int i=0; i<PSIZE; i++){
-        v1[i] = v2[i];
-    }
+    int i = lid*4;
+
+    v1[i]   = v2[i];
+    v1[i+1] = v2[i+1];
+    v1[i+2] = v2[i+2];
+    v1[i+3] = v2[i+3];
 }
 
-void vecncopy(float4 *v1, float4 *v2)
+void vecncopy(__local float4 *v1, __local float4 *v2, int lid)
 {
-    for(int i=0; i<PSIZE; i++){
-        v1[i] = -v2[i];
-    }
+    int i = lid*4;
+
+    v1[i]   = -v2[i];
+    v1[i+1] = -v2[i+1];
+    v1[i+2] = -v2[i+2];
+    v1[i+3] = -v2[i+3];
 }
 
-float vecdot(float4 *v1, float4 *v2)
+/* Returns the dot product as the first element of w1. */
+void vecdot(__local float *w1, __local float4 *v1, __local float4 *v2, int lid)
 {
-    float sum = 0;
-    
-    for(int i=0; i<PSIZE; i++){
-        sum += dot(v1[i], v2[i]);
-    }
-    return sum;
-}
+    int i = lid*4;
+    float sum = 0.0f;
 
-int vecisEqual(float4 *v1, float4 *v2)
-{
-    for(int i=0; i<PSIZE; i++){
-    	if (all(isnotequal(v1[i], v2[i]))){
-	   return 0;
+    sum += dot(v1[i]  , v2[i]);
+    sum += dot(v1[i+1], v2[i+1]);
+    sum += dot(v1[i+2], v2[i+2]);
+    sum += dot(v1[i+3], v2[i+3]);
+    w1[lid] = sum;
+
+    barrier(CLK_LOCAL_MEM_FENCE);
+
+    if(lid == 0){
+    	for(i=1; i<16; i++){
+	   w1[0] += w1[i];
 	}
     }
-    return 1; 
+
+    barrier(CLK_LOCAL_MEM_FENCE);
+}
+
+/* Returns 0 or a positive integer as the first element of w1. */
+void vecisEqual(__local float *w1, __local float4 *v1, __local float4 *v2, int lid)
+{
+    int i = lid*4;
+    int sum = 0;
+
+    sum += all(isnotequal(v1[i],   v2[i]));
+    sum += all(isnotequal(v1[i+1], v2[i+1]));
+    sum += all(isnotequal(v1[i+2], v2[i+2]));
+    sum += all(isnotequal(v1[i+3], v2[i+3]));
+    w1[lid] = sum;
+
+    barrier(CLK_LOCAL_MEM_FENCE);
+
+    if(lid == 0){
+    	for(i=1; i<16; i++){
+	   w1[0] += w1[i];
+	}
+	w1[0] = !w1[0];
+    }
+
+    barrier(CLK_LOCAL_MEM_FENCE);
 }
 
 /* v1 = v2 * s1 + v3 */
-void vecfma(float4 *v1, float4 *v2, float4 *v3, float s1)
+void vecfma(__local float4 *v1, __local float4 *v2, __local float4 *v3, float s1, int lid)
 {
+    int i = lid*4;
+
     float4 t1 = (float4)(s1, s1, s1, s1);
-    for(int i=0; i<PSIZE; i++){
-        v1[i] = fma(t1, v2[i], v3[i]);
-    }
+    v1[i]   = fma(t1, v2[i],   v3[i]);
+    v1[i+1] = fma(t1, v2[i+1], v3[i+1]);
+    v1[i+2] = fma(t1, v2[i+2], v3[i+2]);
+    v1[i+3] = fma(t1, v2[i+3], v3[i+3]);
 }
 
-/* v1 = v1 + v2 * s1 */
-void vecfmaInplace(float4 *v1, float4 *v2, float s1)
+/* v1 = v2 * s1 + v1 */
+void vecfmaInplace(__local float4 *v1, __local float4 *v2, float s1, int lid)
 {
+    int i = lid*4;
+
     float4 t1 = (float4)(s1, s1, s1, s1);
-    for(int i=0; i<PSIZE; i++){
-        v1[i] = fma(t1, v2[i], v1[i]);
+    v1[i]   = fma(t1, v2[i],   v1[i]);
+    v1[i+1] = fma(t1, v2[i+1], v1[i+1]);
+    v1[i+2] = fma(t1, v2[i+2], v1[i+2]);
+    v1[i+3] = fma(t1, v2[i+3], v1[i+3]);
+}
+
+void vecnorm(__local float *w1, __local float4 *v1, int lid)
+{
+    vecdot(w1, v1, v1, lid);
+
+    if(lid == 0){
+        w1[0] = sqrt(w1[0]);
     }
+
+    barrier(CLK_LOCAL_MEM_FENCE);
 }
 
-void vecmul(float4 *v1, float4 *v2, float4 *v3)
+void vecscaleInplace(__local float4 *v1, float s1, int lid)
 {
-    for(int i=0; i<PSIZE; i++){
-        v1[i] = v2[i]*v3[i];
-    }
-}
-
-float vecnorm(float4 *v1)
-{
-    return sqrt(vecdot(v1, v1));
-}
-
-void vecscaleInplace(float4 *v1, float s1)
-{
+    int i = lid*4;
+    
     float4 t1 = (float4)(s1, s1, s1, s1);
-    for(int i=0; i<PSIZE; i++){
-        v1[i] = v1[i]*t1;
-    }
+    v1[i]   = v1[i]*t1;
+    v1[i+1] = v1[i+1]*t1;
+    v1[i+2] = v1[i+2]*t1;
+    v1[i+3] = v1[i+3]*t1;
 }
 
-void vecsub(float4 *v1, float4 *v2, float4 *v3)
+void vecsub(__local float4 *v1, __local float4 *v2, __local float4 *v3, int lid)
 {
-    for(int i=0; i<PSIZE; i++){
-        v1[i] = v2[i] - v3[i];
-    }
+    int i = lid*4;
+    
+    v1[i]   = v2[i]   - v3[i];
+    v1[i+1] = v2[i+1] - v3[i+1];
+    v1[i+2] = v2[i+2] - v3[i+2];
+    v1[i+3] = v2[i+3] - v3[i+3];
 }
 
 
@@ -485,37 +535,6 @@ float calcLogLikelihood(float4 *u, float4 *data, float4 *gamma)
     }
     
     return sum.s0 + sum.s1 + sum.s2 + sum.s3;
-}
-
-/*
- * The slow version. Kept for now, likely removed soon.
- */
-void calcNCGradient(__global float4 *u_fft_grad_r,
-                    __global float4 *u_fft_grad_c,
-                    float4 *u_fft_r, 
-                    float4 *u_fft_c, 
-                    float4 *otf_mask_sqr,
-                    float4 *gradient)
-{
-    float sum;
-    float4 t1;
-    
-    __global float4 *ft_r = (__global float4 *)u_fft_grad_r;
-    __global float4 *ft_c = (__global float4 *)u_fft_grad_c;
-
-    float *g = (float *)gradient;
-
-    for(int i=0; i<(PSIZE*4); i++){
-        int offset = i*PSIZE;
-
-        sum = 0.0f;
-        for(int j=0; j<PSIZE; j++){
-            t1 = u_fft_r[j]*ft_r[j+offset] + u_fft_c[j]*ft_c[j+offset];
-            t1 = 2.0f*t1*otf_mask_sqr[j];
-            sum += t1.s0 + t1.s1 + t1.s2 + t1.s3;
-        }
-        g[i] = sum*(float)(1.0/(4.0*PSIZE));
-    }
 }
 
 /* 
@@ -568,6 +587,7 @@ float calcNoiseContribution(float4 *u_fft_r, float4 *u_fft_c, float4 *otf_mask_s
  * L-BFGS functions.
  ******************/
 
+/*
 int converged(float4 *x, float4 *g)
 {
     float xnorm = fmax(vecnorm(x), 1.0f);
@@ -579,6 +599,7 @@ int converged(float4 *x, float4 *g)
         return 1;
     }
 }
+*/
 
 int moduloM(int i)
 {
@@ -589,466 +610,4 @@ int moduloM(int i)
 /****************
  * Kernels.
  ****************/
-
-__kernel void initUFFTGrad(__global float4 *u_fft_grad_r,
-                           __global float4 *u_fft_grad_c)
-{
-    float4 x_r[PSIZE];
-    float4 x_c[PSIZE];
-    float4 y_r[PSIZE];
-    float4 y_c[PSIZE];
-    
-    for(int i=0; i<PSIZE; i++){
-        x_r[i] = (float4)(0.0, 0.0, 0.0, 0.0);
-        x_c[i] = (float4)(0.0, 0.0, 0.0, 0.0);
-    }
-    
-    float *x = (float *)x_r;
-    
-    for(int i=0; i<(4*PSIZE); i++){
-           
-        x[i] = 1.0f;
-        fft_16x16(x_r, x_c, y_r, y_c);
-
-        int offset = i*PSIZE;
-        for(int j=0; j<PSIZE; j++){
-            u_fft_grad_r[offset+j] = y_r[j];
-            u_fft_grad_c[offset+j] = y_c[j];
-        }
-        x[i] = 0.0f;
-    }
-}
-
-/*
- * Run NCS noise reduction on sub-regions.
- * 
- * Note: Any zero or negative values in the sub-regions should be
- *       set to a small positive value like 1.0.
- *
- * data_in - Sub-region data in e-.
- * g_gamma - Sub-region CMOS variance in units of e-^2.
- * otf_mask - 16 x 16 array containing the OTF mask.
- * data_out - Storage for noise corrected sub-regions.
- * iterations - Number of L-BFGS solver iterations.
- * status - Status of the solution (good, failed because of X).
- * alpha - NCS alpha term.
- */
-__kernel void ncsReduceNoise(__global float4 *data_in,
-                             __global float4 *g_gamma,
-                             __global float4 *otf_mask,
-                             __global float4 *data_out,
-                             __global int *iterations,
-                             __global int *status,
-                             float alpha)
-{
-    int g_id = get_global_id(0);
-    status[g_id] = UNSTARTED;
-    int offset = g_id*PSIZE;
-
-    /* Variables. */
-    int i,j,k;
-    int bound;
-    int ci;
-    
-    float beta;
-    float cost;
-    float cost_p;
-    float step;
-    float ys_c0;
-    float yy;
-    
-    float a[M];
-    float ys[M];
-    
-    float4 data[PSIZE];
-    float4 gamma[PSIZE];
-    float4 g_p[PSIZE];
-    float4 gradient[PSIZE];
-    float4 otf_mask_sqr[PSIZE];
-    float4 srch_dir[PSIZE];
-    float4 u_r[PSIZE]; 
-    float4 u_c[PSIZE];
-    float4 u_fft_r[PSIZE]; 
-    float4 u_fft_c[PSIZE];
-    float4 u_p[PSIZE];
-    float4 work1[PSIZE];
-    
-    float4 s[M][PSIZE];
-    float4 y[M][PSIZE];
-
-    /* Initialization. */    
-    for (i=0; i<PSIZE; i++){
-        data[i] = data_in[i + offset];
-        gamma[i] = g_gamma[i + offset];
-        otf_mask_sqr[i] = otf_mask[i] * otf_mask[i];
-        u_r[i] = data_in[i + offset];
-        u_c[i] = (float4)(0.0, 0.0, 0.0, 0.0);
-    }
-    
-    /* Calculate initial state. */
-    fft_16x16(u_r, u_c, u_fft_r, u_fft_c);
-    
-    /* Cost. */
-    cost = calcLogLikelihood(u_r, data, gamma);
-    cost += alpha * calcNoiseContribution(u_fft_r, u_fft_c, otf_mask_sqr);
-    
-    /* Gradient. */
-    calcLLGradient(u_r, data, gamma, gradient);
-    calcNCGradientIFFT(u_fft_r, u_fft_c, otf_mask_sqr, work1);
-    vecfmaInplace(gradient, work1, alpha);
-
-    /* Check if we've already converged. */
-    if (converged(u_r, gradient)){
-        for (i=0; i<PSIZE; i++){
-            data_out[i + offset] = u_r[i];
-        }
-        iterations[g_id] = 1;
-        status[g_id] = SUCCESS;
-        return;
-    }
-    
-    /* Initial search direction. */
-    step = 1.0/vecnorm(gradient);
-    vecncopy(srch_dir, gradient);
-
-    /* Start search. */
-    for (k=1; k<(MAXITERS+1); k++){
-    
-        /* 
-         * Line search. 
-         *
-         * This checks the Armijo rule/condition.
-         * https://en.wikipedia.org/wiki/Wolfe_conditions
-         */
-        float t1 = C_1 * vecdot(srch_dir, gradient);
-         
-        if (t1 > 0.0){
-            /* Increasing gradient. Minimization failed. */
-            for (i=0; i<PSIZE; i++){
-                data_out[i + offset] = u_r[i];
-            }
-            iterations[g_id] = k+1;
-            status[g_id] = INCREASING_GRADIENT;
-            return;
-        }
-        
-        /* Store current cost, u and gradient. */
-        cost_p = cost;
-        veccopy(u_p, u_r);
-        veccopy(g_p, gradient);
-
-	/* Search for a good step size. */        
-        int searching = 1;
-        while(searching){
-        
-            /* Move in search direction. */
-            vecfma(u_r, srch_dir, u_p, step);
-            
-            /* Calculate new cost. */
-            fft_16x16(u_r, u_c, u_fft_r, u_fft_c);
-            cost = calcLogLikelihood(u_r, data, gamma);
-            cost += alpha * calcNoiseContribution(u_fft_r, u_fft_c, otf_mask_sqr);
-            
-            /* Armijo condition. */
-            if (cost <= (cost_p + t1*step)){
-                searching = 0;
-            }
-            else{
-                step = STEPM*step;
-                if (step < MIN_STEP){
-                    /* 
-                     * Reached minimum step size. Minimization failed. 
-                     * Return the last good u values.
-                     */
-                    for (i=0; i<PSIZE; i++){
-                        // data_out[i + offset] = u_p[i];
-                        data_out[i + offset] = srch_dir[i];
-
-                    }
-                    iterations[g_id] = k+1;
-                    status[g_id] = MINIMUM_STEP;
-                    return;
-                }
-            }
-        }
-        
-        /* Calculate new gradient. */
-        calcLLGradient(u_r, data, gamma, gradient);
-        calcNCGradientIFFT(u_fft_r, u_fft_c, otf_mask_sqr, work1);
-        vecfmaInplace(gradient, work1, alpha);        
-
-        /* Convergence check. */
-        if (converged(u_r, gradient)){
-            for (i=0; i<PSIZE; i++){
-                data_out[i + offset] = u_r[i];
-            }
-            iterations[g_id] = k+1;
-            status[g_id] = SUCCESS;
-            return;
-        }
-        
-        /*
-	 * Machine precision check.
-	 *
-	 * This is probably not an actual failure, we just ran out of digits. Reaching
-	 * this state has a cost so we want to know if this is happening a lot.
-	 */
-        if (vecisEqual(u_r, u_p)){
-            for (i=0; i<PSIZE; i++){
-                data_out[i + offset] = u_r[i];
-            }
-            iterations[g_id] = k+1;
-            status[g_id] = REACHED_MAXPRECISION;
-            return;
-        }
-        
-        /* L-BFGS calculation of new search direction. */
-        ci = (k-1)%M;
-        vecsub(s[ci], u_r, u_p);
-        vecsub(y[ci], gradient, g_p);
-        
-        ys_c0 = vecdot(s[ci], y[ci]);
-        ys[ci] = 1.0/ys_c0;
-        yy = 1.0/vecdot(y[ci], y[ci]);
-        
-        vecncopy(srch_dir, gradient);
-        bound = min(k, M);
-        for(j=0; j<bound; j++){
-	    ci = (k - j - 1)%M;
-            a[ci] = vecdot(s[ci], srch_dir)*ys[ci];
-            vecfmaInplace(srch_dir, y[ci], -a[ci]);
-        }
-        
-        vecscaleInplace(srch_dir, ys_c0*yy);
-        
-        for(j=0; j<bound; j++){
-	    ci = (k + j - bound)%M;
-            beta = vecdot(y[ci], srch_dir)*ys[ci];
-            vecfmaInplace(srch_dir, s[ci], (a[ci] - beta));
-        }
-        
-        step = 1.0;
-    }
-    
-    /* Reached maximum iterations. Minimization failed. */
-    for (i=0; i<PSIZE; i++){
-        data_out[i + offset] = u_r[i];
-    }
-    iterations[g_id] = MAXITERS;
-    status[g_id] = REACHED_MAXITERS;
-}
-
-/*
- * The slow version. Kept for now, likely removed soon.
- *
- * FIXME: I wanted to use structs to avoid having to pass lots 
- *        arguments to each function but I couldn't get this to
- *        work. It would hang on the program.build() step.
- */
-__kernel void ncsReduceNoise_v0(__global float4 *u_fft_grad_r,
-	      			__global float4 *u_fft_grad_c,
-                             	__global float4 *data_in,
-                             	__global float4 *g_gamma,
-                             	__global float4 *otf_mask,
-                             	__global float4 *data_out,
-                             	__global int *iterations,
-                             	__global int *status,
-                             	float alpha)
-{
-    int g_id = get_global_id(0);
-    status[g_id] = UNSTARTED;
-    int offset = g_id*PSIZE;
-
-    /* Variables. */
-    int i,j,k;
-    int bound;
-    int ci;
-    
-    float beta;
-    float cost;
-    float cost_p;
-    float step;
-    float ys_c0;
-    float yy;
-    
-    float a[M];
-    float ys[M];
-    
-    float4 data[PSIZE];
-    float4 gamma[PSIZE];
-    float4 g_p[PSIZE];
-    float4 gradient[PSIZE];
-    float4 otf_mask_sqr[PSIZE];
-    float4 srch_dir[PSIZE];
-    float4 u_r[PSIZE]; 
-    float4 u_c[PSIZE];
-    float4 u_fft_r[PSIZE]; 
-    float4 u_fft_c[PSIZE];
-    float4 u_p[PSIZE];
-    float4 work1[PSIZE];
-    
-    float4 s[M][PSIZE];
-    float4 y[M][PSIZE];
-
-    /* Initialization. */    
-    for (i=0; i<PSIZE; i++){
-        data[i] = data_in[i + offset];
-        gamma[i] = g_gamma[i];
-        otf_mask_sqr[i] = otf_mask[i] * otf_mask[i];
-        u_r[i] = data_in[i + offset];
-        u_c[i] = (float4)(0.0, 0.0, 0.0, 0.0);
-    }
-    
-    /* Calculate initial state. */
-    fft_16x16(u_r, u_c, u_fft_r, u_fft_c);
-    
-    /* Cost. */
-    cost = calcLogLikelihood(u_r, data, gamma);
-    cost += alpha * calcNoiseContribution(u_fft_r, u_fft_c, otf_mask_sqr);
-    
-    /* Gradient. */
-    calcLLGradient(u_r, data, gamma, gradient);
-    calcNCGradient(u_fft_grad_r, u_fft_grad_c, u_fft_r, u_fft_c, otf_mask_sqr, work1);
-    vecfmaInplace(gradient, work1, alpha);
-
-    /* Check if we've already converged. */
-    if (converged(u_r, gradient)){
-        for (i=0; i<PSIZE; i++){
-            data_out[i + offset] = u_r[i];
-        }
-        iterations[g_id] = 1;
-        status[g_id] = SUCCESS;
-        return;
-    }
-    
-    /* Initial search direction. */
-    step = 1.0/vecnorm(gradient);
-    vecncopy(srch_dir, gradient);
-
-    /* Start search. */
-    for (k=1; k<(MAXITERS+1); k++){
-    
-        /* 
-         * Line search. 
-         *
-         * This checks the Armijo rule/condition.
-         * https://en.wikipedia.org/wiki/Wolfe_conditions
-         */
-        float t1 = C_1 * vecdot(srch_dir, gradient);
-         
-        if (t1 > 0.0){
-            /* Increasing gradient. Minimization failed. */
-            for (i=0; i<PSIZE; i++){
-                data_out[i + offset] = u_r[i];
-            }
-            iterations[g_id] = k+1;
-            status[g_id] = INCREASING_GRADIENT;
-            return;
-        }
-        
-        /* Store current cost, u and gradient. */
-        cost_p = cost;
-        veccopy(u_p, u_r);
-        veccopy(g_p, gradient);
-
-	/* Search for a good step size. */        
-        int searching = 1;
-        while(searching){
-        
-            /* Move in search direction. */
-            vecfma(u_r, srch_dir, u_p, step);
-            
-            /* Calculate new cost. */
-            fft_16x16(u_r, u_c, u_fft_r, u_fft_c);
-            cost = calcLogLikelihood(u_r, data, gamma);
-            cost += alpha * calcNoiseContribution(u_fft_r, u_fft_c, otf_mask_sqr);
-            
-            /* Armijo condition. */
-            if (cost <= (cost_p + t1*step)){
-                searching = 0;
-            }
-            else{
-                step = STEPM*step;
-                if (step < MIN_STEP){
-                    /* 
-                     * Reached minimum step size. Minimization failed. 
-                     * Return the last good u values.
-                     */
-                    for (i=0; i<PSIZE; i++){
-                        // data_out[i + offset] = u_p[i];
-                        data_out[i + offset] = srch_dir[i];
-
-                    }
-                    iterations[g_id] = k+1;
-                    status[g_id] = MINIMUM_STEP;
-                    return;
-                }
-            }
-        }
-        
-        /* Calculate new gradient. */
-        calcLLGradient(u_r, data, gamma, gradient);
-        calcNCGradient(u_fft_grad_r, u_fft_grad_c, u_fft_r, u_fft_c, otf_mask_sqr, work1);
-        vecfmaInplace(gradient, work1, alpha);        
-
-        /* Convergence check. */
-        if (converged(u_r, gradient)){
-            for (i=0; i<PSIZE; i++){
-                data_out[i + offset] = u_r[i];
-            }
-            iterations[g_id] = k+1;
-            status[g_id] = SUCCESS;
-            return;
-        }
-        
-        /*
-	 * Machine precision check.
-	 *
-	 * This is probably not an actual failure, we just ran out of digits. Reaching
-	 * this state has a cost so we want to know if this is happening a lot.
-	 */
-        if (vecisEqual(u_r, u_p)){
-            for (i=0; i<PSIZE; i++){
-                data_out[i + offset] = u_r[i];
-            }
-            iterations[g_id] = k+1;
-            status[g_id] = REACHED_MAXPRECISION;
-            return;
-        }
-        
-        /* L-BFGS calculation of new search direction. */
-        ci = (k-1)%M;
-        vecsub(s[ci], u_r, u_p);
-        vecsub(y[ci], gradient, g_p);
-        
-        ys_c0 = vecdot(s[ci], y[ci]);
-        ys[ci] = 1.0/ys_c0;
-        yy = 1.0/vecdot(y[ci], y[ci]);
-        
-        vecncopy(srch_dir, gradient);
-        bound = min(k, M);
-        for(j=0; j<bound; j++){
-	    ci = (k - j - 1)%M;
-            a[ci] = vecdot(s[ci], srch_dir)*ys[ci];
-            vecfmaInplace(srch_dir, y[ci], -a[ci]);
-        }
-        
-        vecscaleInplace(srch_dir, ys_c0*yy);
-        
-        for(j=0; j<bound; j++){
-	    ci = (k + j - bound)%M;
-            beta = vecdot(y[ci], srch_dir)*ys[ci];
-            vecfmaInplace(srch_dir, s[ci], (a[ci] - beta));
-        }
-        
-        step = 1.0;
-    }
-    
-    /* Reached maximum iterations. Minimization failed. */
-    for (i=0; i<PSIZE; i++){
-        data_out[i + offset] = u_r[i];
-    }
-    iterations[g_id] = MAXITERS;
-    status[g_id] = REACHED_MAXITERS;
-}
 
