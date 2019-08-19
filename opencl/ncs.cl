@@ -2,6 +2,7 @@
  * OpenCL kernel code for NCS.
  *
  * Important note!! This will only work correctly with 16 work items per work group!!
+ * Why 16? This matches the 1D size of the 2D FFT.
  *
  * Key resources that I used in this implementation:
  *
@@ -377,6 +378,7 @@ void fft_16x16_wg16(__local float4 *x_r, __local float4 *x_c, __local float4 *y_
     
     // Axis 1.
     fft16_lvar(&(x_r[lid*4]), &(x_c[lid*4]), &(y_r[lid*4]), &(y_c[lid*4]));
+    
     barrier(CLK_LOCAL_MEM_FENCE);
     
     // Axis 2.
@@ -451,6 +453,7 @@ void ifft_16x16_wg16(__local float4 *x_r, __local float4 *x_c, __local float4 *y
          y1_c[(4*j+2)*16+lid] = t1_c[j].z;
          y1_c[(4*j+3)*16+lid] = t1_c[j].w;        
     }
+    
     barrier(CLK_LOCAL_MEM_FENCE);
     
     // Axis 1.
@@ -463,8 +466,8 @@ void ifft_16x16_wg16(__local float4 *x_r, __local float4 *x_c, __local float4 *y
 /******************
  * Vector functions.
  *
- * These are all designed on vectors with 64 float4 elements and
- * lid values in the range (0 - 15).
+ * These are all designed on vectors with 64 float4 elements
+ * and lid values in the range (0 - 15).
  *
  ******************/
 
@@ -594,33 +597,75 @@ void vecsub(__local float4 *v1, __local float4 *v2, __local float4 *v3, int lid)
 
 /****************
  * NCS functions.
+ *
+ * These are all designed on vectors with 64 float4 elements
+ * and lid values in the range (0 - 15).
+ *
  ****************/
 
-void calcLLGradient(float4 *u, float4 *data, float4 *gamma, float4 *gradient)
+void calcLLGradient(__local float4 *u, __local float4 *data, __local float4 *gamma, __local float4 *gradient, int lid)
 {
+    int i = lid*4;
     float4 t1;
     float4 t2;
 
-    for(int i=0; i<PSIZE; i++){
-        t1 = data[i] + gamma[i];
-        t2 = fmax(u[i] + gamma[i], FITMIN);
-        gradient[i] = 1.0f - t1/t2;
-    }
+    t1 = data[i] + gamma[i];
+    t2 = fmax(u[i] + gamma[i], FITMIN);
+    gradient[i] = 1.0f - t1/t2;
+
+    i += 1;
+    t1 = data[i] + gamma[i];
+    t2 = fmax(u[i] + gamma[i], FITMIN);
+    gradient[i] = 1.0f - t1/t2;
+
+    i += 1;
+    t1 = data[i] + gamma[i];
+    t2 = fmax(u[i] + gamma[i], FITMIN);
+    gradient[i] = 1.0f - t1/t2;
+
+    i += 1;
+    t1 = data[i] + gamma[i];
+    t2 = fmax(u[i] + gamma[i], FITMIN);
+    gradient[i] = 1.0f - t1/t2;
 }
 
-float calcLogLikelihood(float4 *u, float4 *data, float4 *gamma)
+void calcLogLikelihood(__local float *w1, __local float4 *u, __local float4 *data, __local float4 *gamma, int lid)
 {
+    int i = lid*4;
     float4 sum = (float4)(0.0, 0.0, 0.0, 0.0);
     float4 t1;
     float4 t2;
 
-    for(int i=0; i<PSIZE; i++){
-        t1 = data[i] + gamma[i];
-        t2 = log(fmax(u[i] + gamma[i], FITMIN));
-        sum += u[i] - t1*t2;
+    t1 = data[i] + gamma[i];
+    t2 = log(fmax(u[i] + gamma[i], FITMIN));
+    sum += u[i] - t1*t2;
+
+    i += 1;
+    t1 = data[i] + gamma[i];
+    t2 = log(fmax(u[i] + gamma[i], FITMIN));
+    sum += u[i] - t1*t2;
+
+    i += 1;
+    t1 = data[i] + gamma[i];
+    t2 = log(fmax(u[i] + gamma[i], FITMIN));
+    sum += u[i] - t1*t2;
+
+    i += 1;
+    t1 = data[i] + gamma[i];
+    t2 = log(fmax(u[i] + gamma[i], FITMIN));
+    sum += u[i] - t1*t2;
+
+    w1[lid] = sum.x + sum.y + sum.z + sum.w;
+
+    barrier(CLK_LOCAL_MEM_FENCE);
+
+    if(lid == 0){
+    	for(i=1; i<16; i++){
+	   w1[0] += w1[i];
+	}
     }
-    
-    return sum.s0 + sum.s1 + sum.s2 + sum.s3;
+
+    barrier(CLK_LOCAL_MEM_FENCE);
 }
 
 /* 
