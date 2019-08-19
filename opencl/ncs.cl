@@ -798,8 +798,345 @@ void converged(__local int *w1,
     barrier(CLK_LOCAL_MEM_FENCE);
 }
 
+/*****************
+ * NCS Function
+ *****************/
+
+/*
+ * Run NCS noise reduction on a sub-region.
+ * 
+ * Note: Any zero or negative values in the sub-regions should be
+ *       set to a small positive value like 1.0.
+ *
+ * data - Sub-region data in e-.
+ * gamma - Sub-region CMOS variance in units of e-^2.
+ * otf_mask_sqr - 16 x 16 array containing the OTF mask.
+ * u_r - Noise reduction results.
+ * iterations - Number of L-BFGS solver iterations.
+ * status - Status of the solution (good, failed because of X).
+ * alpha - NCS alpha term.
+ * lid - work item id (0-15).
+ */
+void ncsReduceNoiseSR(__local float4 *data,
+		      __local float4 *gamma,
+		      __local float4 *otf_mask_sqr,
+		      __local float4 *u_r,
+		      __local int *iterations,
+		      __local int *status,
+		      float alpha,
+		      int lid)
+{
+    /* Variables. */
+    int i = lid*4;
+    int j,k;
+    
+    __local int bound;
+    __local int ci;
+    __local int searching;
+  
+    __local float beta;
+    __local float cost;
+    __local float cost_p;
+    __local float step;
+    __local float t1;
+    __local float ys_c0;
+    __local float yy;
+
+    __local int w1_i[ASIZE];
+    __local float w1_f[ASIZE];
+    
+    __local float a[M];
+    __local float ys[M];
+    
+    __local float4 g_p[PSIZE];
+    __local float4 gradient[PSIZE];
+    __local float4 srch_dir[PSIZE];
+    __local float4 u_c[PSIZE];
+    __local float4 u_fft_r[PSIZE]; 
+    __local float4 u_fft_c[PSIZE];
+    __local float4 u_p[PSIZE];
+
+    __local float4 w1_f4[PSIZE];
+    __local float4 w2_f4[PSIZE];
+    __local float4 w3_f4[PSIZE];
+    __local float4 w4_f4[PSIZE];
+    
+    __local float4 s[M][PSIZE];
+    __local float4 y[M][PSIZE];
+
+    /* Initialization. */
+    if (lid == 0){
+        *iterations = 0;
+        *status = UNSTARTED;
+    }
+    
+    for (j=0; j<4; j++){
+        u_c[i+j] = (float4)(0.0f, 0.0f, 0.0f, 0.0f);
+    }
+
+    barrier(CLK_LOCAL_MEM_FENCE);
+
+    /* Calculate initial state. */
+    fft_16x16_wg16(u_r, u_c, u_fft_r, u_fft_c, lid);
+    
+    /* Cost. */
+    calcLogLikelihood(w1_f, u_r, data, gamma, lid);
+    if (lid == 0){
+        cost = w1_f[0]
+    }
+    barrier(CLK_LOCAL_MEM_FENCE);
+
+    calcNoiseContribution(w1_f, u_fft_r, u_fft_c, otf_mask_sqr, lid);
+    if (lid == 0){
+        cost += alpha*w1_f[0]
+    }
+    barrier(CLK_LOCAL_MEM_FENCE);
+    
+    /* Gradient. */
+    calcLLGradient(u_r, data, gamma, gradient, lid);
+    calcNCGradientIFFT(w1_f4, w2_f4, w3_f4, u_fft_r, u_fft_c, otf_mask_sqr, w4_f4, lid);
+    vecfmaInplace(gradient, w4_f4, alpha, lid);
+    barrier(CLK_LOCAL_MEM_FENCE);
+    
+    /* Check if we've already converged. */
+    converged(w1_i, w1_f, u_r, gradient, lid)
+    if (w1_i[0]){
+        if (lid == 0){
+	    *iterations = 1;
+            *status = SUCCESS;
+	}
+	return;
+    }
+    
+    /* Initial search direction. */
+    vecnorm(w1_f, gradient, lid);
+    if (lid == 0){
+        step = 1.0/w1_f[0];
+    }
+    vecncopy(srch_dir, gradient, lid);
+    barrier(CLK_LOCAL_MEM_FENCE);
+    
+    /* Start search. */
+    for (k=1; k<(MAXITERS+1); k++){
+    
+        /* 
+         * Line search. 
+         *
+         * This checks the Armijo rule/condition.
+         * https://en.wikipedia.org/wiki/Wolfe_conditions
+         */
+	vecdot(w1_f, srch_dir, gradient, lid);
+	if (lid == 0){
+            t1 = C_1 * w1_f[0];
+        }
+
+        barrier(CLK_LOCAL_MEM_FENCE);
+        if (t1 > 0.0){
+            /* Increasing gradient. Minimization failed. */
+            if (lid == 0){
+	        *iterations = 1;
+                *status = INCREASING_GRADIENT;
+	    }
+	    return;
+        }
+        
+        /* Store current cost, u and gradient. */
+	if (lid == 0){
+            cost_p = cost;
+	}
+        veccopy(u_p, u_r, lid);
+        veccopy(g_p, gradient, lid);
+	
+	/* Search for a good step size. */
+	if (lid == 0){
+            searching = 1;
+	}
+	
+	barrier(CLK_LOCAL_MEM_FENCE);
+        while(searching){
+        
+            /* Move in search direction. */
+            vecfma(u_r, srch_dir, u_p, step, lid);
+            barrier(CLK_LOCAL_MEM_FENCE);
+		
+            /* Calculate new cost. */
+            calcLogLikelihood(w1_f, u_r, data, gamma, lid);
+            if (lid == 0){
+                cost = w1_f[0]
+            }
+            barrier(CLK_LOCAL_MEM_FENCE);
+
+            calcNoiseContribution(w1_f, u_fft_r, u_fft_c, otf_mask_sqr, lid);
+            if (lid == 0){
+                cost += alpha*w1_f[0]
+            }
+            barrier(CLK_LOCAL_MEM_FENCE);
+            
+            /* Armijo condition. */
+            if (cost <= (cost_p + t1*step)){
+	        if (lid == 0){
+                    searching = 0;
+		}
+		barrier(CLK_LOCAL_MEM_FENCE);
+            }
+            else{
+	        if (lid == 0){ 
+                    step = STEPM*step;
+		}
+		
+	        barrier(CLK_LOCAL_MEM_FENCE);
+		
+                if (step < MIN_STEP){
+                    /* 
+                     * Reached minimum step size. Minimization failed. 
+                     * Return the last good u values.
+                     */
+		    for (j=0; j<4; j++){
+                        u_c[i+j] = u_p[i+j];
+                    }
+                    if (lid == 0){
+                        *iterations = k+1;
+                        *status = MINIMUM_STEP;
+	            }
+                    return;
+                }
+            }
+        }
+        
+        /* Calculate new gradient. */
+	calcLLGradient(u_r, data, gamma, gradient, lid);
+        calcNCGradientIFFT(w1_f4, w2_f4, w3_f4, u_fft_r, u_fft_c, otf_mask_sqr, w4_f4, lid);
+        vecfmaInplace(gradient, w4_f4, alpha, lid);
+        barrier(CLK_LOCAL_MEM_FENCE);
+    
+        /* Convergence check. */
+        converged(w1_i, w1_f, u_r, gradient, lid)
+        if (w1_i[0]){
+            if (lid == 0){
+	        *iterations = k+1;
+                *status = SUCCESS;
+	    }
+	    return;
+        }
+        
+        /*
+	 * Machine precision check.
+	 *
+	 * This is probably not an actual failure, we just ran out of digits. Reaching
+	 * this state has a cost so we want to know if this is happening a lot.
+	 */
+	vecisEqual(w1_i, u_r, u_p, lid);
+        if (w1_i[0]){
+	    if (lid == 0){
+                *iterations = k+1;
+                *status = REACHED_MAXPRECISION;
+            }
+            return;
+        }
+        
+        /* L-BFGS calculation of new search direction. */
+	if (lid == 0){
+            ci = (k-1)%M;
+	}
+	barrier(CLK_LOCAL_MEM_FENCE);
+	
+        vecsub(s[ci], u_r, u_p, lid);
+        vecsub(y[ci], gradient, g_p, lid);
+        
+        ys_c0 = vecdot(s[ci], y[ci]);
+        ys[ci] = 1.0/ys_c0;
+        yy = 1.0/vecdot(y[ci], y[ci]);
+        
+        vecncopy(srch_dir, gradient);
+        bound = min(k, M);
+        for(j=0; j<bound; j++){
+	    ci = (k - j - 1)%M;
+            a[ci] = vecdot(s[ci], srch_dir)*ys[ci];
+            vecfmaInplace(srch_dir, y[ci], -a[ci]);
+        }
+        
+        vecscaleInplace(srch_dir, ys_c0*yy);
+        
+        for(j=0; j<bound; j++){
+	    ci = (k + j - bound)%M;
+            beta = vecdot(y[ci], srch_dir)*ys[ci];
+            vecfmaInplace(srch_dir, s[ci], (a[ci] - beta));
+        }
+        
+        step = 1.0;
+    }
+    
+    /* Reached maximum iterations. Minimization failed. */
+    if (lid == 0){
+        *iterations = MAXITERS;
+        *status = REACHED_MAXITERS;
+    }
+}
+
 
 /****************
  * Kernels.
  ****************/
 
+/*
+ * Run NCS noise reduction on sub-regions.
+ * 
+ * Note: Any zero or negative values in the sub-regions should be
+ *       set to a small positive value like 1.0.
+ *
+ * data_in - Sub-region data in e-.
+ * g_gamma - Sub-region CMOS variance in units of e-^2.
+ * otf_mask - 16 x 16 array containing the OTF mask.
+ * data_out - Storage for noise corrected sub-regions.
+ * iterations - Number of L-BFGS solver iterations.
+ * status - Status of the solution (good, failed because of X).
+ * alpha - NCS alpha term.
+ */
+__kernel void ncsReduceNoise(__global float4 *data_in,
+                             __global float4 *g_gamma,
+                             __global float4 *otf_mask,
+                             __global float4 *data_out,
+                             __global int *g_iterations,
+                             __global int *g_status,
+                             float alpha)
+{
+    int gid = get_group_id(0);
+    int lid = get_local_id(0);
+
+    int i_l = lid*4;
+    int i_g = gid*4*16 + i_l;
+    
+    /* Variables. */
+    int j,k;
+    
+    __local int iterations;
+    __local int status;
+    __local float4 data[PSIZE];
+    __local float4 gamma[PSIZE];
+    __local float4 otf_mask_sqr[PSIZE];
+    __local float4 u_r[PSIZE]; 
+
+    /* Initialization. */
+    for (j=0; j<4; j++){
+    	k = i_l+j;
+        data[k] = data_in[i_g+k];
+        gamma[k] = g_gamma[i_g+k];
+        otf_mask_sqr[k] = otf_mask[i_g+k] * otf_mask[i_g+k];
+        u_r[k] = data_in[i_g+k];
+    }
+
+    barrier(CLK_LOCAL_MEM_FENCE);
+
+    /* Run NCS calculation. */
+    ncsReduceNoiseSR(data, gamma, otf_mask_sqr, u_r, &iterations, &status, alpha, lid);
+
+    /* Save results. */
+    for (j=0; j<4; j++){
+        k = i_l+j;
+    	data_out[i_g+k] = u_r[k];
+    }
+    if (lid == 0){
+        g_iterations[g_id] = iterations;
+        g_status[g_id] = status;
+    }
+}
