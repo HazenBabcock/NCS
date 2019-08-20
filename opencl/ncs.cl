@@ -830,7 +830,7 @@ __kernel void ncsReduceNoise(__global float4 *data_in,
     int lid = get_local_id(0);
 
     int i = lid*4;
-    int i_g = gid*4*16 + i;
+    int i_g = gid*PSIZE;
 
     int j,k;
     
@@ -877,20 +877,18 @@ __kernel void ncsReduceNoise(__global float4 *data_in,
     	k = i+j;
         data[k] = data_in[i_g+k];
         gamma[k] = g_gamma[i_g+k];
-        otf_mask_sqr[k] = otf_mask[i_g+k] * otf_mask[i_g+k];
+        otf_mask_sqr[k] = otf_mask[k] * otf_mask[k];
         u_r[k] = data_in[i_g+k];
+	u_c[k] = (float4)(0.0f, 0.0f, 0.0f, 0.0f);
     }
     
-    for (j=0; j<4; j++){
-        u_c[i+j] = (float4)(0.0f, 0.0f, 0.0f, 0.0f);
-    }
-
     barrier(CLK_LOCAL_MEM_FENCE);
 
     /* Calculate initial state. */
-    fft_16x16_wg16(u_r, u_c, u_fft_r, u_fft_c, lid);
     
     /* Cost. */
+    fft_16x16_wg16(u_r, u_c, u_fft_r, u_fft_c, lid);
+
     calcLogLikelihood(w1_f, u_r, data, gamma, lid);
     if (lid == 0){
         cost = w1_f[0];
@@ -984,7 +982,9 @@ __kernel void ncsReduceNoise(__global float4 *data_in,
             vecfma(u_r, srch_dir, u_p, step, lid);
 	    
             barrier(CLK_LOCAL_MEM_FENCE);
-		
+
+            fft_16x16_wg16(u_r, u_c, u_fft_r, u_fft_c, lid);
+
             /* Calculate new cost. */
             calcLogLikelihood(w1_f, u_r, data, gamma, lid);
             if (lid == 0){
