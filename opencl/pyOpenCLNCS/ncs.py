@@ -135,7 +135,7 @@ class NCSOpenCL(object):
         status_buffer = cl.Buffer(context, cl.mem_flags.WRITE_ONLY | cl.mem_flags.COPY_HOST_PTR, 
                                   hostbuf = status)
 
-        ev1 = program.ncsReduceNoise(queue, (num_sr,), (1,),
+        ev1 = program.ncsReduceNoise(queue, (num_sr*16,), (16,),
                                      data_in_buffer,
                                      gamma_buffer,
                                      otf_mask_buffer,
