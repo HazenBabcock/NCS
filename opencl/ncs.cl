@@ -429,7 +429,7 @@ void ifft_16x16_wg16(__local float4 *x_r, __local float4 *x_c, __local float4 *y
     // Axis 2.
     
     // Convert columns to rows.
-    for(int j=0; j<4; j++){
+    for(j=0; j<4; j++){
         t1_r[j].x = x1_r[(4*j+0)*16+lid];
         t1_r[j].y = x1_r[(4*j+1)*16+lid];
         t1_r[j].z = x1_r[(4*j+2)*16+lid];
@@ -443,7 +443,7 @@ void ifft_16x16_wg16(__local float4 *x_r, __local float4 *x_c, __local float4 *y
      ifft16(t1_r, t1_c, t1_r, t1_c);
         
      // Reverse conversion.
-     for(int j=0; j<4; j++){
+     for(j=0; j<4; j++){
          y1_r[(4*j+0)*16+lid] = t1_r[j].x;
          y1_r[(4*j+1)*16+lid] = t1_r[j].y;
          y1_r[(4*j+2)*16+lid] = t1_r[j].z;
