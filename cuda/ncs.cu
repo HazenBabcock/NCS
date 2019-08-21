@@ -71,7 +71,7 @@
  ****************/
 
 // 4 point complex FFT
-void fft4(float4 x_r, float4 x_c, float4 *y_r, float4 *y_c)
+__device__ void fft4(float4 x_r, float4 x_c, float4 *y_r, float4 *y_c)
 {
     float t1_r = x_r.x + x_r.z;
     float t1_c = x_c.x + x_c.z;
@@ -98,7 +98,7 @@ void fft4(float4 x_r, float4 x_c, float4 *y_r, float4 *y_c)
 
 
 // 4 point complex IFFT
-void ifft4(float4 x_r, float4 x_c, float4 *y_r, float4 *y_c)
+__device__ void ifft4(float4 x_r, float4 x_c, float4 *y_r, float4 *y_c)
 {
     float t1_r = x_r.x + x_r.z;
     float t1_c = x_c.x + x_c.z;
@@ -128,7 +128,7 @@ void ifft4(float4 x_r, float4 x_c, float4 *y_r, float4 *y_c)
 
 
 // 8 point complex FFT.
-void fft8(float4 *x_r, float4 *x_c, float4 *y_r, float4 *y_c)
+__device__ void fft8(float4 *x_r, float4 *x_c, float4 *y_r, float4 *y_c)
 {
     float4 t_r;
     float4 t_c;
@@ -157,7 +157,7 @@ void fft8(float4 *x_r, float4 *x_c, float4 *y_r, float4 *y_c)
 
 
 // 8 point complex IFFT.
-void ifft8(float4 *x_r, float4 *x_c, float4 *y_r, float4 *y_c)
+__device__ void ifft8(float4 *x_r, float4 *x_c, float4 *y_r, float4 *y_c)
 {
     float4 t_r;
     float4 t_c;
@@ -191,7 +191,7 @@ void ifft8(float4 *x_r, float4 *x_c, float4 *y_r, float4 *y_c)
 
 
 // 16 point complex FFT.
-void fft16(float4 *x_r, float4 *x_c, float4 *y_r, float4 *y_c)
+__device__ void fft16(float4 *x_r, float4 *x_c, float4 *y_r, float4 *y_c)
 {
     float4 t_r[2];
     float4 t_c[2];
@@ -231,7 +231,7 @@ void fft16(float4 *x_r, float4 *x_c, float4 *y_r, float4 *y_c)
 
 
 // 16 point complex FFT (__local variable version).
-void fft16_lvar(float4 *x_r, float4 *x_c, float4 *y_r, float4 *y_c)
+__device__ void fft16_lvar(float4 *x_r, float4 *x_c, float4 *y_r, float4 *y_c)
 {
     float4 t_r[2];
     float4 t_c[2];
@@ -271,7 +271,7 @@ void fft16_lvar(float4 *x_r, float4 *x_c, float4 *y_r, float4 *y_c)
 
 
 // 16 point complex IFFT.
-void ifft16(float4 *x_r, float4 *x_c, float4 *y_r, float4 *y_c)
+__device__ void ifft16(float4 *x_r, float4 *x_c, float4 *y_r, float4 *y_c)
 {
     float4 t_r[2];
     float4 t_c[2];
@@ -316,7 +316,7 @@ void ifft16(float4 *x_r, float4 *x_c, float4 *y_r, float4 *y_c)
 
 
 // 16 point complex IFFT (__local variable version).
-void ifft16_lvar(float4 *x_r, float4 *x_c, float4 *y_r, float4 *y_c)
+__device__ void ifft16_lvar(float4 *x_r, float4 *x_c, float4 *y_r, float4 *y_c)
 {
     float4 t_r[2];
     float4 t_c[2];
@@ -361,7 +361,7 @@ void ifft16_lvar(float4 *x_r, float4 *x_c, float4 *y_r, float4 *y_c)
 
 
 // 16 x 16 point complex FFT with work group size of 16.
-void fft_16x16_wg16(float4 *x_r, float4 *x_c, float4 *y_r, float4 *y_c, int lid)
+__device__ void fft_16x16_wg16(float4 *x_r, float4 *x_c, float4 *y_r, float4 *y_c, int lid)
 {
     int j;
     
@@ -409,7 +409,7 @@ void fft_16x16_wg16(float4 *x_r, float4 *x_c, float4 *y_r, float4 *y_c, int lid)
 
 
 // 16 x 16 point complex IFFT with work group size of 16.
-void ifft_16x16_wg16(float4 *x_r, float4 *x_c, float4 *y_r, float4 *y_c, int lid)
+__device__ void ifft_16x16_wg16(float4 *x_r, float4 *x_c, float4 *y_r, float4 *y_c, int lid)
 {
     int j;
     
@@ -466,7 +466,7 @@ void ifft_16x16_wg16(float4 *x_r, float4 *x_c, float4 *y_r, float4 *y_c, int lid
  *
  ******************/
 
-void veccopy(float4 *v1, float4 *v2, int lid)
+__device__ void veccopy(float4 *v1, float4 *v2, int lid)
 {
     int i = lid*4;
 
@@ -476,7 +476,7 @@ void veccopy(float4 *v1, float4 *v2, int lid)
     v1[i+3] = v2[i+3];
 }
 
-void vecncopy(float4 *v1, float4 *v2, int lid)
+__device__ void vecncopy(float4 *v1, float4 *v2, int lid)
 {
     int i = lid*4;
 
@@ -487,7 +487,7 @@ void vecncopy(float4 *v1, float4 *v2, int lid)
 }
 
 /* Returns the dot product as the first element of w1. */
-void vecdot(float *w1, float4 *v1, float4 *v2, int lid)
+__device__ void vecdot(float *w1, float4 *v1, float4 *v2, int lid)
 {
     int i = lid*4;
     float sum = 0.0f;
@@ -510,15 +510,15 @@ void vecdot(float *w1, float4 *v1, float4 *v2, int lid)
 }
 
 /* Returns 0 or a positive integer as the first element of w1. */
-void vecisEqual(int *w1, float4 *v1, float4 *v2, int lid)
+__device__ void vecisEqual(int *w1, float4 *v1, float4 *v2, int lid)
 {
     int i = lid*4;
     int sum = 0;
 
-    sum += all(isnotequal(v1[i],   v2[i]));
-    sum += all(isnotequal(v1[i+1], v2[i+1]));
-    sum += all(isnotequal(v1[i+2], v2[i+2]));
-    sum += all(isnotequal(v1[i+3], v2[i+3]));
+    sum += (v1[i].x   != v2[i].x)   + (v1[i].y   != v2[i].y)   + (v1[i].z   != v2[i].z)   + (v1[i].w   != v2[i].w);
+    sum += (v1[i+1].x != v2[i+1].x) + (v1[i+1].y != v2[i+1].y) + (v1[i+1].z != v2[i+1].z) + (v1[i+1].w != v2[i+1].w);
+    sum += (v1[i+2].x != v2[i+2].x) + (v1[i+2].y != v2[i+2].y) + (v1[i+2].z != v2[i+2].z) + (v1[i+2].w != v2[i+2].w);
+    sum += (v1[i+3].x != v2[i+3].x) + (v1[i+3].y != v2[i+3].y) + (v1[i+3].z != v2[i+3].z) + (v1[i+3].w != v2[i+3].w);
     w1[lid] = sum;
 
     __syncthreads();
@@ -534,30 +534,64 @@ void vecisEqual(int *w1, float4 *v1, float4 *v2, int lid)
 }
 
 /* v1 = v2 * s1 + v3 */
-void vecfma(float4 *v1, float4 *v2, float4 *v3, float s1, int lid)
+__device__ void vecfma(float4 *v1, float4 *v2, float4 *v3, float s1, int lid)
 {
     int i = lid*4;
 
-    float4 t1 = make_float4(s1, s1, s1, s1);
-    v1[i]   = fma(t1, v2[i],   v3[i]);
-    v1[i+1] = fma(t1, v2[i+1], v3[i+1]);
-    v1[i+2] = fma(t1, v2[i+2], v3[i+2]);
-    v1[i+3] = fma(t1, v2[i+3], v3[i+3]);
+    v1[i].x   = fma(s1, v2[i].x, v3[i].x);
+    v1[i].y   = fma(s1, v2[i].y, v3[i].y);
+    v1[i].z   = fma(s1, v2[i].z, v3[i].z);
+    v1[i].w   = fma(s1, v2[i].w, v3[i].w);
+    i += 1;
+
+    v1[i].x   = fma(s1, v2[i].x, v3[i].x);
+    v1[i].y   = fma(s1, v2[i].y, v3[i].y);
+    v1[i].z   = fma(s1, v2[i].z, v3[i].z);
+    v1[i].w   = fma(s1, v2[i].w, v3[i].w);
+    i += 1;
+
+    v1[i].x   = fma(s1, v2[i].x, v3[i].x);
+    v1[i].y   = fma(s1, v2[i].y, v3[i].y);
+    v1[i].z   = fma(s1, v2[i].z, v3[i].z);
+    v1[i].w   = fma(s1, v2[i].w, v3[i].w);
+    i += 1;
+
+    v1[i].x   = fma(s1, v2[i].x, v3[i].x);
+    v1[i].y   = fma(s1, v2[i].y, v3[i].y);
+    v1[i].z   = fma(s1, v2[i].z, v3[i].z);
+    v1[i].w   = fma(s1, v2[i].w, v3[i].w);
 }
 
 /* v1 = v2 * s1 + v1 */
-void vecfmaInplace(float4 *v1, float4 *v2, float s1, int lid)
+__device__ void vecfmaInplace(float4 *v1, float4 *v2, float s1, int lid)
 {
     int i = lid*4;
 
-    float4 t1 = make_float4(s1, s1, s1, s1);
-    v1[i]   = fma(t1, v2[i],   v1[i]);
-    v1[i+1] = fma(t1, v2[i+1], v1[i+1]);
-    v1[i+2] = fma(t1, v2[i+2], v1[i+2]);
-    v1[i+3] = fma(t1, v2[i+3], v1[i+3]);
+    v1[i].x   = fma(s1, v2[i].x, v1[i].x);
+    v1[i].y   = fma(s1, v2[i].y, v1[i].y);
+    v1[i].z   = fma(s1, v2[i].z, v1[i].z);
+    v1[i].w   = fma(s1, v2[i].w, v1[i].w);
+    i += 1;
+
+    v1[i].x   = fma(s1, v2[i].x, v1[i].x);
+    v1[i].y   = fma(s1, v2[i].y, v1[i].y);
+    v1[i].z   = fma(s1, v2[i].z, v1[i].z);
+    v1[i].w   = fma(s1, v2[i].w, v1[i].w);
+    i += 1;
+
+    v1[i].x   = fma(s1, v2[i].x, v1[i].x);
+    v1[i].y   = fma(s1, v2[i].y, v1[i].y);
+    v1[i].z   = fma(s1, v2[i].z, v1[i].z);
+    v1[i].w   = fma(s1, v2[i].w, v1[i].w);
+    i += 1;
+
+    v1[i].x   = fma(s1, v2[i].x, v1[i].x);
+    v1[i].y   = fma(s1, v2[i].y, v1[i].y);
+    v1[i].z   = fma(s1, v2[i].z, v1[i].z);
+    v1[i].w   = fma(s1, v2[i].w, v1[i].w);
 }
 
-void vecnorm(float *w1, float4 *v1, int lid)
+__device__ void vecnorm(float *w1, float4 *v1, int lid)
 {
     vecdot(w1, v1, v1, lid);
 
@@ -568,7 +602,7 @@ void vecnorm(float *w1, float4 *v1, int lid)
     __syncthreads();
 }
 
-void vecscaleInplace(float4 *v1, float s1, int lid)
+__device__ void vecscaleInplace(float4 *v1, float s1, int lid)
 {
     int i = lid*4;
     
@@ -579,7 +613,7 @@ void vecscaleInplace(float4 *v1, float s1, int lid)
     v1[i+3] = v1[i+3]*t1;
 }
 
-void vecsub(float4 *v1, float4 *v2, float4 *v3, int lid)
+__device__ void vecsub(float4 *v1, float4 *v2, float4 *v3, int lid)
 {
     int i = lid*4;
     
@@ -598,41 +632,53 @@ void vecsub(float4 *v1, float4 *v2, float4 *v3, int lid)
  *
  ****************/
 
-void calcLLGradient(float4 *u,
-                    float4 *data,
-		    float4 *gamma,
-		    float4 *gradient,
-		    int lid)
+__device__ void calcLLGradient(float4 *u,
+                               float4 *data,
+		               float4 *gamma,
+		               float4 *gradient,
+		               int lid)
 {
     int i = lid*4;
     float4 t1;
     float4 t2;
 
     t1 = data[i] + gamma[i];
-    t2 = fmax(u[i] + gamma[i], FITMIN);
-    gradient[i] = 1.0f - t1/t2;
+    t2.x = fmax(u[i].x + gamma[i].x, FITMIN);
+    t2.y = fmax(u[i].y + gamma[i].y, FITMIN);
+    t2.z = fmax(u[i].z + gamma[i].z, FITMIN);
+    t2.w = fmax(u[i].w + gamma[i].w, FITMIN);
+    gradient[i] = make_float4(1.0f, 1.0f, 1.0f, 1.0f) - t1/t2;
 
     i += 1;
     t1 = data[i] + gamma[i];
-    t2 = fmax(u[i] + gamma[i], FITMIN);
-    gradient[i] = 1.0f - t1/t2;
+    t2.x = fmax(u[i].x + gamma[i].x, FITMIN);
+    t2.y = fmax(u[i].y + gamma[i].y, FITMIN);
+    t2.z = fmax(u[i].z + gamma[i].z, FITMIN);
+    t2.w = fmax(u[i].w + gamma[i].w, FITMIN);
+    gradient[i] = make_float4(1.0f, 1.0f, 1.0f, 1.0f) - t1/t2;
 
     i += 1;
     t1 = data[i] + gamma[i];
-    t2 = fmax(u[i] + gamma[i], FITMIN);
-    gradient[i] = 1.0f - t1/t2;
+    t2.x = fmax(u[i].x + gamma[i].x, FITMIN);
+    t2.y = fmax(u[i].y + gamma[i].y, FITMIN);
+    t2.z = fmax(u[i].z + gamma[i].z, FITMIN);
+    t2.w = fmax(u[i].w + gamma[i].w, FITMIN);
+    gradient[i] = make_float4(1.0f, 1.0f, 1.0f, 1.0f) - t1/t2;
 
     i += 1;
     t1 = data[i] + gamma[i];
-    t2 = fmax(u[i] + gamma[i], FITMIN);
-    gradient[i] = 1.0f - t1/t2;
+    t2.x = fmax(u[i].x + gamma[i].x, FITMIN);
+    t2.y = fmax(u[i].y + gamma[i].y, FITMIN);
+    t2.z = fmax(u[i].z + gamma[i].z, FITMIN);
+    t2.w = fmax(u[i].w + gamma[i].w, FITMIN);
+    gradient[i] = make_float4(1.0f, 1.0f, 1.0f, 1.0f) - t1/t2;    
 }
 
-void calcLogLikelihood(float *w1,
-                       float4 *u,
-		       float4 *data,
-		       float4 *gamma,
-		       int lid)
+__device__ void calcLogLikelihood(float *w1,
+                                  float4 *u,
+		                  float4 *data,
+		                  float4 *gamma,
+		                  int lid)
 {
     int i = lid*4;
     float4 sum = make_float4(0.0f, 0.0f, 0.0f, 0.0f);
@@ -640,22 +686,34 @@ void calcLogLikelihood(float *w1,
     float4 t2;
 
     t1 = data[i] + gamma[i];
-    t2 = log(fmax(u[i] + gamma[i], FITMIN));
+    t2.x = log(fmax(u[i].x + gamma[i].x, FITMIN));
+    t2.y = log(fmax(u[i].y + gamma[i].y, FITMIN));
+    t2.z = log(fmax(u[i].z + gamma[i].z, FITMIN));
+    t2.w = log(fmax(u[i].w + gamma[i].w, FITMIN));
     sum += u[i] - t1*t2;
 
     i += 1;
     t1 = data[i] + gamma[i];
-    t2 = log(fmax(u[i] + gamma[i], FITMIN));
+    t2.x = log(fmax(u[i].x + gamma[i].x, FITMIN));
+    t2.y = log(fmax(u[i].y + gamma[i].y, FITMIN));
+    t2.z = log(fmax(u[i].z + gamma[i].z, FITMIN));
+    t2.w = log(fmax(u[i].w + gamma[i].w, FITMIN));
     sum += u[i] - t1*t2;
 
     i += 1;
     t1 = data[i] + gamma[i];
-    t2 = log(fmax(u[i] + gamma[i], FITMIN));
+    t2.x = log(fmax(u[i].x + gamma[i].x, FITMIN));
+    t2.y = log(fmax(u[i].y + gamma[i].y, FITMIN));
+    t2.z = log(fmax(u[i].z + gamma[i].z, FITMIN));
+    t2.w = log(fmax(u[i].w + gamma[i].w, FITMIN));
     sum += u[i] - t1*t2;
 
     i += 1;
     t1 = data[i] + gamma[i];
-    t2 = log(fmax(u[i] + gamma[i], FITMIN));
+    t2.x = log(fmax(u[i].x + gamma[i].x, FITMIN));
+    t2.y = log(fmax(u[i].y + gamma[i].y, FITMIN));
+    t2.z = log(fmax(u[i].z + gamma[i].z, FITMIN));
+    t2.w = log(fmax(u[i].w + gamma[i].w, FITMIN));
     sum += u[i] - t1*t2;
 
     w1[lid] = sum.x + sum.y + sum.z + sum.w;
@@ -682,14 +740,14 @@ void calcLogLikelihood(float *w1,
  *  2. The u_fft_r and u_fft_c parameters must also be the
  *     FT of a real valued image.
  */
-void calcNCGradientIFFT(float4 *w1,
-                        float4 *w2,
-			float4 *w3,
-                        float4 *u_fft_r, 
-                        float4 *u_fft_c, 
-                        float4 *otf_mask_sqr,
-                        float4 *gradient,
-			int lid)
+__device__ void calcNCGradientIFFT(float4 *w1,
+                                  float4 *w2,
+		                  float4 *w3,
+                                  float4 *u_fft_r, 
+                                  float4 *u_fft_c, 
+                                  float4 *otf_mask_sqr,
+                                  float4 *gradient,
+			          int lid)
 {
     int i = lid*4;
     
@@ -719,11 +777,11 @@ void calcNCGradientIFFT(float4 *w1,
     ifft_16x16_wg16(w1, w2, gradient, w3, lid);
 }
 
-void calcNoiseContribution(float *w1,
-                           float4 *u_fft_r,
-			   float4 *u_fft_c,
-			   float4 *otf_mask_sqr,
-			   int lid)
+__device__ void calcNoiseContribution(float *w1,
+                                      float4 *u_fft_r,
+			              float4 *u_fft_c,
+			              float4 *otf_mask_sqr,
+			              int lid)
 {
     int i = lid*4;
     float4 sum = make_float4(0.0f, 0.0f, 0.0f, 0.0f);
@@ -763,11 +821,11 @@ void calcNoiseContribution(float *w1,
  * L-BFGS functions.
  ******************/
 
-void converged(int *w1,
-               float *w2,
-	       float4 *x,
-	       float4 *g,
-	       int lid)
+__device__ void converged(int *w1,
+                          float *w2,
+	                  float4 *x,
+	                  float4 *g,
+	                  int lid)
 {
     float xnorm;
     float gnorm;
@@ -812,14 +870,13 @@ void converged(int *w1,
  * status - Status of the solution (good, failed because of X).
  * alpha - NCS alpha term.
  */
-__kernel void ncsReduceNoise(float4 *data_in,
-                             float4 *g_gamma,
-                             float4 *otf_mask,
-                             float4 *data_out,
-                             int *g_iterations,
-                             int *g_status,
-                             float alpha)
-
+__global__ void ncsReduceNoise(float4 *data_in,
+                               float4 *g_gamma,
+                               float4 *otf_mask,
+                               float4 *data_out,
+                               int *g_iterations,
+                               int *g_status,
+                               float alpha)
 {
     int gid = blockIdx.x;
     int lid = threadIdx.x;
@@ -874,7 +931,7 @@ __kernel void ncsReduceNoise(float4 *data_in,
         gamma[k] = g_gamma[i_g+k];
         otf_mask_sqr[k] = otf_mask[k] * otf_mask[k];
         u_r[k] = data_in[i_g+k];
-	u_c[k] = (float4)(0.0f, 0.0f, 0.0f, 0.0f);
+	u_c[k] = make_float4(0.0f, 0.0f, 0.0f, 0.0f);
     }
 
     __syncthreads();
