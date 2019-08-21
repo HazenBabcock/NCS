@@ -870,13 +870,13 @@ __device__ void converged(int *w1,
  * status - Status of the solution (good, failed because of X).
  * alpha - NCS alpha term.
  */
-__global__ void ncsReduceNoise(float4 *data_in,
-                               float4 *g_gamma,
-                               float4 *otf_mask,
-                               float4 *data_out,
-                               int *g_iterations,
-                               int *g_status,
-                               float alpha)
+extern "C" __global__ void ncsReduceNoise(float4 *data_in,
+                                          float4 *g_gamma,
+                                          float4 *otf_mask,
+                                          float4 *data_out,
+                                          int *g_iterations,
+                                          int *g_status,
+                                          float alpha)
 {
     int gid = blockIdx.x;
     int lid = threadIdx.x;
