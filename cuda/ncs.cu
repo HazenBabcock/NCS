@@ -821,51 +821,51 @@ __kernel void ncsReduceNoise(float4 *data_in,
                              float alpha)
 
 {
-    int gid = get_group_id(0);
-    int lid = get_local_id(0);
+    int gid = blockIdx.x;
+    int lid = threadIdx.x;
 
     int i = lid*4;
     int i_g = gid*PSIZE;
 
     int j,k;
     
-    __local int bound;
-    __local int ci;
-    __local int searching;
+    __shared__ int bound;
+    __shared__ int ci;
+    __shared__ int searching;
   
-    __local float beta;
-    __local float cost;
-    __local float cost_p;
-    __local float step;
-    __local float t1;
-    __local float ys_c0;
-    __local float yy;
+    __shared__ float beta;
+    __shared__ float cost;
+    __shared__ float cost_p;
+    __shared__ float step;
+    __shared__ float t1;
+    __shared__ float ys_c0;
+    __shared__ float yy;
 
-    __local int w1_i[ASIZE];
-    __local float w1_f[ASIZE];
+    __shared__ int w1_i[ASIZE];
+    __shared__ float w1_f[ASIZE];
     
-    __local float a[M];
-    __local float ys[M];
+    __shared__ float a[M];
+    __shared__ float ys[M];
 
-    __local float4 data[PSIZE];
-    __local float4 gamma[PSIZE];
-    __local float4 g_p[PSIZE];
-    __local float4 gradient[PSIZE];
-    __local float4 otf_mask_sqr[PSIZE];
-    __local float4 srch_dir[PSIZE];
-    __local float4 u_c[PSIZE];
-    __local float4 u_p[PSIZE];
-    __local float4 u_r[PSIZE]; 
-    __local float4 u_fft_r[PSIZE]; 
-    __local float4 u_fft_c[PSIZE];
+    __shared__ float4 data[PSIZE];
+    __shared__ float4 gamma[PSIZE];
+    __shared__ float4 g_p[PSIZE];
+    __shared__ float4 gradient[PSIZE];
+    __shared__ float4 otf_mask_sqr[PSIZE];
+    __shared__ float4 srch_dir[PSIZE];
+    __shared__ float4 u_c[PSIZE];
+    __shared__ float4 u_p[PSIZE];
+    __shared__ float4 u_r[PSIZE]; 
+    __shared__ float4 u_fft_r[PSIZE]; 
+    __shared__ float4 u_fft_c[PSIZE];
 
-    __local float4 w1_f4[PSIZE];
-    __local float4 w2_f4[PSIZE];
-    __local float4 w3_f4[PSIZE];
-    __local float4 w4_f4[PSIZE];
+    __shared__ float4 w1_f4[PSIZE];
+    __shared__ float4 w2_f4[PSIZE];
+    __shared__ float4 w3_f4[PSIZE];
+    __shared__ float4 w4_f4[PSIZE];
     
-    __local float4 s[M][PSIZE];
-    __local float4 y[M][PSIZE];
+    __shared__ float4 s[M][PSIZE];
+    __shared__ float4 y[M][PSIZE];
 
     /* Initialization. */
     for (j=0; j<4; j++){
@@ -876,8 +876,8 @@ __kernel void ncsReduceNoise(float4 *data_in,
         u_r[k] = data_in[i_g+k];
 	u_c[k] = (float4)(0.0f, 0.0f, 0.0f, 0.0f);
     }
-    
-    barrier(CLK_LOCAL_MEM_FENCE);
+
+    __syncthreads();
 
     /* Calculate initial state. */
     
@@ -888,22 +888,22 @@ __kernel void ncsReduceNoise(float4 *data_in,
     if (lid == 0){
         cost = w1_f[0];
     }
-    
-    barrier(CLK_LOCAL_MEM_FENCE);
+
+    __syncthreads();
 
     calcNoiseContribution(w1_f, u_fft_r, u_fft_c, otf_mask_sqr, lid);
     if (lid == 0){
         cost += alpha*w1_f[0];
     }
-    
-    barrier(CLK_LOCAL_MEM_FENCE);
+
+    __syncthreads();
     
     /* Gradient. */
     calcLLGradient(u_r, data, gamma, gradient, lid);
     calcNCGradientIFFT(w1_f4, w2_f4, w3_f4, u_fft_r, u_fft_c, otf_mask_sqr, w4_f4, lid);
     vecfmaInplace(gradient, w4_f4, alpha, lid);
-    
-    barrier(CLK_LOCAL_MEM_FENCE);
+
+    __syncthreads();
     
     /* Check if we've already converged. */
     converged(w1_i, w1_f, u_r, gradient, lid);
@@ -925,8 +925,8 @@ __kernel void ncsReduceNoise(float4 *data_in,
         step = 1.0/w1_f[0];
     }
     vecncopy(srch_dir, gradient, lid);
-    
-    barrier(CLK_LOCAL_MEM_FENCE);
+
+    __syncthreads();
     
     /* Start search. */
     for (k=1; k<(MAXITERS+1); k++){
@@ -942,7 +942,7 @@ __kernel void ncsReduceNoise(float4 *data_in,
             t1 = C_1 * w1_f[0];
         }
 
-        barrier(CLK_LOCAL_MEM_FENCE);
+        __syncthreads();
 	
         if (t1 > 0.0){
             /* Increasing gradient. Minimization failed. */
@@ -968,15 +968,15 @@ __kernel void ncsReduceNoise(float4 *data_in,
 	if (lid == 0){
             searching = 1;
 	}
-	
-	barrier(CLK_LOCAL_MEM_FENCE);
+
+        __syncthreads();
 	
         while(searching){
         
             /* Move in search direction. */
             vecfma(u_r, srch_dir, u_p, step, lid);
-	    
-            barrier(CLK_LOCAL_MEM_FENCE);
+
+            __syncthreads();
 
             fft_16x16_wg16(u_r, u_c, u_fft_r, u_fft_c, lid);
 
@@ -985,31 +985,31 @@ __kernel void ncsReduceNoise(float4 *data_in,
             if (lid == 0){
                 cost = w1_f[0];
             }
-	    
-            barrier(CLK_LOCAL_MEM_FENCE);
+
+            __syncthreads();
 
             calcNoiseContribution(w1_f, u_fft_r, u_fft_c, otf_mask_sqr, lid);
             if (lid == 0){
                 cost += alpha*w1_f[0];
             }
-	    
-            barrier(CLK_LOCAL_MEM_FENCE);
+
+            __syncthreads();
             
             /* Armijo condition. */
             if (cost <= (cost_p + t1*step)){
 	        if (lid == 0){
                     searching = 0;
 		}
-		
-		barrier(CLK_LOCAL_MEM_FENCE);
+
+                __syncthreads();
 		
             }
             else{
 	        if (lid == 0){ 
                     step = STEPM*step;
 		}
-		
-	        barrier(CLK_LOCAL_MEM_FENCE);
+
+                __syncthreads();
 		
                 if (step < MIN_STEP){
                     /* 
@@ -1033,8 +1033,8 @@ __kernel void ncsReduceNoise(float4 *data_in,
 	calcLLGradient(u_r, data, gamma, gradient, lid);
         calcNCGradientIFFT(w1_f4, w2_f4, w3_f4, u_fft_r, u_fft_c, otf_mask_sqr, w4_f4, lid);
         vecfmaInplace(gradient, w4_f4, alpha, lid);
-	
-        barrier(CLK_LOCAL_MEM_FENCE);
+
+        __syncthreads();
     
         /* Convergence check. */
         converged(w1_i, w1_f, u_r, gradient, lid);
@@ -1073,13 +1073,13 @@ __kernel void ncsReduceNoise(float4 *data_in,
 	if (lid == 0){
             ci = (k-1)%M;
 	}
-	
-	barrier(CLK_LOCAL_MEM_FENCE);
+
+        __syncthreads();
 	
         vecsub(s[ci], u_r, u_p, lid);
         vecsub(y[ci], gradient, g_p, lid);
 
-	barrier(CLK_LOCAL_MEM_FENCE);
+        __syncthreads();
 
         vecdot(w1_f, s[ci], y[ci], lid);
 	if (lid == 0){
@@ -1087,7 +1087,7 @@ __kernel void ncsReduceNoise(float4 *data_in,
             ys[ci] = 1.0/ys_c0;
 	}
 
-	barrier(CLK_LOCAL_MEM_FENCE);
+        __syncthreads(); 
 
         vecdot(w1_f, y[ci], y[ci], lid);
         if (lid == 0){
@@ -1100,22 +1100,22 @@ __kernel void ncsReduceNoise(float4 *data_in,
             bound = min(k, M);
 	}
 
-	barrier(CLK_LOCAL_MEM_FENCE);
+        __syncthreads();
 	
         for(j=0; j<bound; j++){
 
             if (lid == 0){
 	        ci = (k - j - 1)%M;
 	    }
-
-	    barrier(CLK_LOCAL_MEM_FENCE);
+	    
+            __syncthreads();
 
             vecdot(w1_f, s[ci], srch_dir, lid);
             if (lid == 0){
                 a[ci] = w1_f[0]*ys[ci];
             }
 
-	    barrier(CLK_LOCAL_MEM_FENCE);
+            __syncthreads();
 
             vecfmaInplace(srch_dir, y[ci], -a[ci], lid);
         }
@@ -1128,14 +1128,14 @@ __kernel void ncsReduceNoise(float4 *data_in,
 	        ci = (k + j - bound)%M;
 	    }
 
-	    barrier(CLK_LOCAL_MEM_FENCE);
+            __syncthreads();
 
             vecdot(w1_f, y[ci], srch_dir, lid);
 	    if (lid == 0){
 	        beta = w1_f[0]*ys[ci];
 	    }
 
-	    barrier(CLK_LOCAL_MEM_FENCE);
+            __syncthreads();
 
             vecfmaInplace(srch_dir, s[ci], (a[ci] - beta), lid);
         }
@@ -1144,7 +1144,7 @@ __kernel void ncsReduceNoise(float4 *data_in,
             step = 1.0;
 	}
 
-	barrier(CLK_LOCAL_MEM_FENCE);
+        __syncthreads();
     }
     
     /* Reached maximum iterations. Minimization failed. */
