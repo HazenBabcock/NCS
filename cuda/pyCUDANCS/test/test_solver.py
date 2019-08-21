@@ -21,10 +21,7 @@ import pyCUDANCS
 # CUDA setup.
 #
 kernel_code = pyCUDANCS.loadNCSKernel()
-mod = SourceModule(kernel_code,
-                   nvcc = "/usr/local/cuda-10.1/bin/nvcc",
-                   no_extern_c = True,
-                   include_dirs = ["/usr/local/cuda/samples/common/inc"])
+mod = SourceModule(kernel_code, **pyCUDANCS.src_module_args)
 ncsReduceNoise = mod.get_function("ncsReduceNoise")
 
 
@@ -53,8 +50,8 @@ def test_ncs_noise_reduction_1():
                   drv.Out(iters),
                   drv.Out(status),
                   numpy.float32(alpha),
-                  block = (16),
-                  grid = (16))
+                  block = (16,1,1),
+                  grid = (16,1))
 
    # Python reference version.
    ref_u = numpy.zeros(data.size)
@@ -99,8 +96,8 @@ def test_ncs_noise_reduction_2():
                   drv.Out(iters),
                   drv.Out(status),
                   numpy.float32(alpha),
-                  block = (n_reps*16),
-                  grid = (16))
+                  block = (16,1,1),
+                  grid = (16*n_reps,1))
 
    # NCSC noise reduction.
    otf_mask = numpy.fft.fftshift(otf_mask_shift.reshape(16, 16))
