@@ -97,7 +97,7 @@ def test_ncs_noise_reduction_2():
                   drv.Out(status),
                   numpy.float32(alpha),
                   block = (16,1,1),
-                  grid = (16*n_reps,1))
+                  grid = (n_reps,1))
 
    # NCSC noise reduction.
    otf_mask = numpy.fft.fftshift(otf_mask_shift.reshape(16, 16))

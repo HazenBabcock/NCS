@@ -2,7 +2,7 @@
 """
 Test NCS on an image.
 
-Hazen 04/19
+Hazen 08/19
 """
 import numpy
 
@@ -11,11 +11,11 @@ import pyCNCS.ncs_c as ncsC
 import pyCNCS.test.py_ref as pyRef
 
 # python3 and OpenCL 
-import pyOpenCLNCS.ncs as ncsOC
+import pyCUDANCS.ncs as ncsCU
 
 def test_im_1():
     """
-    Verify that C and OpenCL NCS code returns the same results 
+    Verify that C and CUDA NCS code returns the same results 
     on a variety of image sizes.
     """
     im_size = 30
@@ -36,7 +36,7 @@ def test_im_1():
                                      otfmask_shift,
                                      alpha)
 
-            ncs2 = ncsOC.reduceNoise([image[ix:im_size,iy:im_size]],
+            ncs2 = ncsCU.reduceNoise([image[ix:im_size,iy:im_size]],
                                      gamma[ix:im_size,iy:im_size],
                                      otfmask,
                                      alpha)
