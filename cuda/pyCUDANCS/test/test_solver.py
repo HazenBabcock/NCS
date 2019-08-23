@@ -51,7 +51,7 @@ def test_ncs_noise_reduction_1():
                   drv.Out(status),
                   numpy.float32(alpha),
                   block = (16,1,1),
-                  grid = (16,1))
+                  grid = (1,1))
 
    # Python reference version.
    ref_u = numpy.zeros(data.size)
