@@ -38,7 +38,7 @@ def buildProgram(code):
     return program
 
 
-n_reps = 1
+n_reps = 20
 
 
 #
