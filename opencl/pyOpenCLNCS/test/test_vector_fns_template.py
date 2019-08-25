@@ -422,8 +422,187 @@ def test_vecfmaInplace():
                 
             assert (numpy.allclose(v1, v2*v3 + v1_c))
 
+
+#
+# vecnorm()
+#
+
+vecnorm_kernel_code = """
+
+__kernel void vecnorm_test(__global float *g_v1,
+                           __global float *g_v2)
+{
+  int i;
+  int lid = get_local_id(0);
+
+  __local float v1[256];
+  __local float v2[256];
+
+  if (lid == 0){
+    for(i=0;i<256;i++){
+      v2[i] = g_v1[i];
+    }
+  }
+
+  barrier(CLK_LOCAL_MEM_FENCE);
+
+  vecnorm(v1, v2, lid);
+
+  if (lid == 0){
+    *g_v2 = v1[0];
+  }
+}
+
+"""
+
+def test_vecnorm():
+    
+    for size in targs.size_to_depth:
+        args = targs.arguments(work_group_size = size)
+        targs.addOpenCL(args)
+
+        vf_code = vf.vecdot("v1", "v2", "v3", args)
+        vf_code += vf.vecnorm("v1", "v2", args)
+        program = buildProgram(vf_code + vecnorm_kernel_code)
+
+        for i in range(n_reps):
+            v1 = numpy.random.uniform(low = 1.0, high = 10.0, size = 256).astype(dtype = numpy.float32)
+            v2 = numpy.zeros(1).astype(numpy.float32)
+
+            v1_buffer = cl.Buffer(context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf = v1)
+            v2_buffer = cl.Buffer(context, cl.mem_flags.WRITE_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf = v2)
+            
+            program.vecnorm_test(queue, (size,), (size,), v1_buffer, v2_buffer)
+            cl.enqueue_copy(queue, v2, v2_buffer).wait()
+            queue.finish()
+
+            assert numpy.allclose(v2, numpy.sqrt(numpy.sum(v1*v1)))
+
+
+#
+# vecscaleInplace()
+#
+
+vecscaleInplace_kernel_code = """
+
+__kernel void vecscaleInplace_test(__global float *g_v1,
+                                   float g_v2)
+{
+  int i;
+  int lid = get_local_id(0);
+
+  __local float v1[256];
+
+  if (lid == 0){
+    for(i=0;i<256;i++){
+      v1[i] = g_v1[i];
+    }
+  }
+
+  barrier(CLK_LOCAL_MEM_FENCE);
+
+  vecscaleInplace(v1, g_v2, lid);
+
+  barrier(CLK_LOCAL_MEM_FENCE);
+
+  if (lid == 0){
+    for(i=0;i<256;i++){
+      g_v1[i] = v1[i];
+    }
+  }
+}
+
+"""
+
+def test_vecscaleInplace():
+    
+    for size in targs.size_to_depth:
+        args = targs.arguments(work_group_size = size)
+        targs.addOpenCL(args)
+        
+        vf_code = vf.vecscaleInplace("v1", "v2", args)
+        program = buildProgram(vf_code + vecscaleInplace_kernel_code)
+
+        for i in range(n_reps):
+            v1 = numpy.random.uniform(low = 1.0, high = 10.0, size = 256).astype(dtype = numpy.float32)
+            v2 = numpy.float32(numpy.random.uniform())
+
+            v1_c = numpy.copy(v1)
+            
+            v1_buffer = cl.Buffer(context, cl.mem_flags.READ_WRITE | cl.mem_flags.COPY_HOST_PTR, hostbuf = v1)
+            
+            program.vecscaleInplace_test(queue, (size,), (size,), v1_buffer, v2)
+            cl.enqueue_copy(queue, v1, v1_buffer).wait()
+            queue.finish()
+
+            assert numpy.allclose(v1, v1_c*v2)
+
+
+
+#
+# vecsub()
+#
+
+vecsub_kernel_code = """
+
+__kernel void vecsub_test(__global float *g_v1,
+                          __global float *g_v2,
+                          __global float *g_v3)
+{
+  int i;
+  int lid = get_local_id(0);
+
+  __local float v1[256];
+  __local float v2[256];
+  __local float v3[256];
+
+  if (lid == 0){
+    for(i=0;i<256;i++){
+      v2[i] = g_v2[i];
+      v3[i] = g_v3[i];
+    }
+  }
+
+  barrier(CLK_LOCAL_MEM_FENCE);
+
+  vecsub(v1, v2, v3, lid);
+
+  barrier(CLK_LOCAL_MEM_FENCE);
+
+  if (lid == 0){
+    for(i=0;i<256;i++){
+      g_v1[i] = v1[i];
+    }
+  }
+}
+
+"""
+
+def test_vecsub():
+    
+    for size in targs.size_to_depth:
+        args = targs.arguments(work_group_size = size)
+        targs.addOpenCL(args)
+        
+        vf_code = vf.vecsub("v1", "v2", "v3", args)
+        program = buildProgram(vf_code + vecsub_kernel_code)
+
+        for i in range(n_reps):
+            v1 = numpy.zeros(256).astype(dtype = numpy.float32)
+            v2 = numpy.random.uniform(low = 1.0, high = 10.0, size = 256).astype(dtype = numpy.float32)
+            v3 = numpy.random.uniform(low = 1.0, high = 10.0, size = 256).astype(dtype = numpy.float32)
+
+            v1_buffer = cl.Buffer(context, cl.mem_flags.WRITE_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf = v1)
+            v2_buffer = cl.Buffer(context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf = v2)
+            v3_buffer = cl.Buffer(context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf = v3)
+            
+            program.vecsub_test(queue, (size,), (size,), v1_buffer, v2_buffer, v3_buffer)
+            cl.enqueue_copy(queue, v1, v1_buffer).wait()
+            queue.finish()
+                
+            assert (numpy.allclose(v1, v2-v3))
+
             
 if (__name__ == "__main__"):
-    test_vecfmaInplace()
+    test_vecsub()
 
-    

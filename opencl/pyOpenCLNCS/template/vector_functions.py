@@ -241,12 +241,12 @@ vecnorm_tpl = jinja2.Template("""
 {{device}}void vecnorm({{local}}{{real_type}} *{{a1}}, {{local}}{{real_type}} *{{a2}}, int lid)
 {
   {% endif %}
-  vecdot({{a1}}, {{a2}}, {{a2}});
+  vecdot({{a1}}, {{a2}}, {{a2}}, lid);
 
   {{sync_fn}}
 
   if (lid == 0){
-    {{a1}}[0] = sqrt({{aq}}[0]);
+    {{a1}}[0] = sqrt({{a1}}[0]);
   } 
 
   {{sync_fn}}
@@ -266,7 +266,7 @@ def vecnorm(a1, a2, args):
 # Scale vector in place.
 vecscaleInplace_tpl = jinja2.Template("""
 {%- if not_inline -%}
-{{device}}void vecscaleInplace({{local}}{{real_type}} *{{a1}}, {{local}}{{real_type}} *{{a2}}, int lid)
+{{device}}void vecscaleInplace({{local}}{{real_type}} *{{a1}}, {{real_type}} {{a2}}, int lid)
 {
   {% if (item_size != "1") -%}
   int i = lid*{{item_size}};
@@ -274,7 +274,7 @@ vecscaleInplace_tpl = jinja2.Template("""
   {%- endif -%}
 
   {% for i in indices %}
-  {{a1}}[{{i}}] = {{a2}}[{{i}}] * {{a1}}[{{i}}];
+  {{a1}}[{{i}}] = {{a1}}[{{i}}] * {{a2}};
   {%- endfor -%}
 
 {% if not_inline %}
@@ -300,7 +300,7 @@ vecsub_tpl = jinja2.Template("""
   {%- endif -%}
 
   {% for i in indices %}
-  {{a1}}[{{i}}] = {{a2}}[{{i}}] - {{a1}}[{{i}}];
+  {{a1}}[{{i}}] = {{a2}}[{{i}}] - {{a3}}[{{i}}];
   {%- endfor -%}
 
 {% if not_inline %}
@@ -308,8 +308,9 @@ vecsub_tpl = jinja2.Template("""
 {% endif %}
 """)
 
-def vecsub(a1, a2, args):
+def vecsub(a1, a2, a3, args):
     tmp = args.copy()
     tmp["a1"] = a1
     tmp["a2"] = a2
+    tmp["a3"] = a3
     return vecsub_tpl.render(tmp)
