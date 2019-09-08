@@ -20,7 +20,7 @@ import jinja2
 # FFT2, 16 workers, fast axis.
 fft2_gs16_fa_tpl = jinja2.Template("""
     int r_off = 16*lid;
-    int i,j;
+    int i,j,k;
 
     {{real_type}} cf_r[16];
     {{real_type}} cf_c[16];
@@ -94,7 +94,7 @@ fft2_gs32_fa_tpl = jinja2.Template("""
     int r_off = 8*(lid&30); // 0x00011110 
     int wn    = lid&1;      // 0x00000001
     int c_off, o_off;
-    int i,j;
+    int i,j,k;
 
     {{real_type}} cf_r[16];
     {{real_type}} cf_c[16];
@@ -139,7 +139,7 @@ fft2_gs64_fa_tpl = jinja2.Template("""
     int r_off = 4*(lid&60); // 0x00111100 
     int wn    = lid&3;      // 0x00000011
     int c_off, o_off;
-    int i,j;
+    int i,j,k;
 
     {{real_type}} cf_r[16];
     {{real_type}} cf_c[16];
@@ -170,7 +170,7 @@ fft2_gs128_fa_tpl = jinja2.Template("""
     int r_off = 2*(lid&120); // 0x01111000 
     int wn    = lid&7;       // 0x00000111
     int c_off, o_off;
-    int i,j;
+    int i,j,k;
 
     {{real_type}} cf_r[16];
     {{real_type}} cf_c[16];
@@ -193,7 +193,7 @@ fft2_gs256_fa_tpl = jinja2.Template("""
     int r_off = lid&240; // 0x11110000 
     int wn    = lid&15;  // 0x00001111
     int c_off, o_off;
-    int i,j;
+    int i,j,k;
 
     {{real_type}} cf_r[16];
     {{real_type}} cf_c[16];
@@ -405,12 +405,13 @@ fft4_gs128_fa_tpl = jinja2.Template("""
 
     {{sync_fn}}
 
-    {{a1}}[wn]   = t_r[0];
-    {{a1}}[wn+4] = t_r[1];
+    j = r_off+8*c_off+o_off;
+    {{a1}}[j]   = t_r[0];
+    {{a1}}[j+4] = t_r[1];
 
-    {{a2}}[wn]   = t_c[0];
-    {{a2}}[wn+4] = t_c[1];
-   
+    {{a2}}[j]   = t_c[0];
+    {{a2}}[j+4] = t_c[1];
+
     {{sync_fn}}
 """)
 
@@ -430,8 +431,10 @@ fft4_gs256_fa_tpl = jinja2.Template("""
     c_off = wn>>2;
     o_off = wn&3;
     j = r_off+o_off;
-    t_r[0] = {{a1}}[j] + cf_r[c_off]*{{a1}}[j+4] - cf_c[c_off]*{{a2}}[j+4];
-    t_c[0] = {{a2}}[j] + cf_c[c_off]*{{a1}}[j+4] + cf_r[c_off]*{{a2}}[j+4];
+    k = j + 8*(c_off&1);
+
+    t_r[0] = {{a1}}[k] + cf_r[c_off]*{{a1}}[k+4];
+    t_c[0] = cf_c[c_off]*{{a1}}[j+12];
 
     {{sync_fn}}
 
@@ -442,6 +445,303 @@ fft4_gs256_fa_tpl = jinja2.Template("""
 """)
 
 
+##
+## FFT8
+## 
+
+# FFT8, 16 workers, fast axis.
+fft8_gs16_fa_tpl = jinja2.Template("""
+    cf_r[0] =  1.0{{real_type[0]}};
+    cf_r[1] =  7.07106781e-01{{real_type[0]}};
+    cf_r[2] =  0.0{{real_type[0]}};
+    cf_r[3] =  -7.07106781e-01{{real_type[0]}};
+    cf_r[4] =  -1.0{{real_type[0]}};
+    cf_r[5] =  -7.07106781e-01{{real_type[0]}};
+    cf_r[6] =  0.0{{real_type[0]}};
+    cf_r[7] =  7.07106781e-01{{real_type[0]}};
+
+    cf_c[0] =  0.0{{real_type[0]}};
+    cf_c[1] = -7.07106781e-01{{real_type[0]}};
+    cf_c[2] = -1.0{{real_type[0]}};
+    cf_c[3] = -7.07106781e-01{{real_type[0]}};
+    cf_c[4] =  0.0{{real_type[0]}};
+    cf_c[5] =  7.07106781e-01{{real_type[0]}};
+    cf_c[6] =  1.0{{real_type[0]}};
+    cf_c[7] =  7.07106781e-01{{real_type[0]}};
+
+    j = r_off;
+    t_r[0] = {{a1}}[j]    + cf_r[0]*{{a1}}[j+2]  - cf_c[0]*{{a2}}[j+2];
+    t_r[1] = {{a1}}[j+4]  + cf_r[1]*{{a1}}[j+6]  - cf_c[1]*{{a2}}[j+6];
+    t_r[2] = {{a1}}[j+8]  + cf_r[2]*{{a1}}[j+10] - cf_c[2]*{{a2}}[j+10];
+    t_r[3] = {{a1}}[j+12] + cf_r[3]*{{a1}}[j+14] - cf_c[3]*{{a2}}[j+14];
+    t_r[4] = {{a1}}[j]    + cf_r[4]*{{a1}}[j+2]  - cf_c[4]*{{a2}}[j+2];
+    t_r[5] = {{a1}}[j+4]  + cf_r[5]*{{a1}}[j+6]  - cf_c[5]*{{a2}}[j+6];
+    t_r[6] = {{a1}}[j+8]  + cf_r[6]*{{a1}}[j+10] - cf_c[6]*{{a2}}[j+10];
+    t_r[7] = {{a1}}[j+12] + cf_r[7]*{{a1}}[j+14] - cf_c[7]*{{a2}}[j+14];
+
+    t_c[0] = {{a2}}[j]    + cf_r[0]*{{a2}}[j+2]  + cf_c[0]*{{a1}}[j+2]; 
+    t_c[1] = {{a2}}[j+4]  + cf_r[1]*{{a2}}[j+6]  + cf_c[1]*{{a1}}[j+6];
+    t_c[2] = {{a2}}[j+8]  + cf_r[2]*{{a2}}[j+10] + cf_c[2]*{{a1}}[j+10];
+    t_c[3] = {{a2}}[j+12] + cf_r[3]*{{a2}}[j+14] + cf_c[3]*{{a1}}[j+14];
+    t_c[4] = {{a2}}[j]    + cf_r[4]*{{a2}}[j+2]  + cf_c[4]*{{a1}}[j+2];
+    t_c[5] = {{a2}}[j+4]  + cf_r[5]*{{a2}}[j+6]  + cf_c[5]*{{a1}}[j+6];
+    t_c[6] = {{a2}}[j+8]  + cf_r[6]*{{a2}}[j+10] + cf_c[6]*{{a1}}[j+10];
+    t_c[7] = {{a2}}[j+12] + cf_r[7]*{{a2}}[j+14] + cf_c[7]*{{a1}}[j+14];
+
+    {{a1}}[j]    = t_r[0];
+    {{a1}}[j+2]  = t_r[1];
+    {{a1}}[j+4]  = t_r[2];
+    {{a1}}[j+6]  = t_r[3];
+    {{a1}}[j+8]  = t_r[4];
+    {{a1}}[j+10] = t_r[5];
+    {{a1}}[j+12] = t_r[6];
+    {{a1}}[j+14] = t_r[7];
+
+    {{a2}}[j]    = t_c[0];
+    {{a2}}[j+2]  = t_c[1];
+    {{a2}}[j+4]  = t_c[2];
+    {{a2}}[j+6]  = t_c[3];
+    {{a2}}[j+8]  = t_c[4];
+    {{a2}}[j+10] = t_c[5];
+    {{a2}}[j+12] = t_c[6];
+    {{a2}}[j+14] = t_c[7];
+
+    j = r_off+1;
+    t_r[0] = {{a1}}[j]    + cf_r[0]*{{a1}}[j+2]  - cf_c[0]*{{a2}}[j+2];
+    t_r[1] = {{a1}}[j+4]  + cf_r[1]*{{a1}}[j+6]  - cf_c[1]*{{a2}}[j+6];
+    t_r[2] = {{a1}}[j+8]  + cf_r[2]*{{a1}}[j+10] - cf_c[2]*{{a2}}[j+10];
+    t_r[3] = {{a1}}[j+12] + cf_r[3]*{{a1}}[j+14] - cf_c[3]*{{a2}}[j+14];
+    t_r[4] = {{a1}}[j]    + cf_r[4]*{{a1}}[j+2]  - cf_c[4]*{{a2}}[j+2];
+    t_r[5] = {{a1}}[j+4]  + cf_r[5]*{{a1}}[j+6]  - cf_c[5]*{{a2}}[j+6];
+    t_r[6] = {{a1}}[j+8]  + cf_r[6]*{{a1}}[j+10] - cf_c[6]*{{a2}}[j+10];
+    t_r[7] = {{a1}}[j+12] + cf_r[7]*{{a1}}[j+14] - cf_c[7]*{{a2}}[j+14];
+
+    t_c[0] = {{a2}}[j]    + cf_r[0]*{{a2}}[j+2]  + cf_c[0]*{{a1}}[j+2]; 
+    t_c[1] = {{a2}}[j+4]  + cf_r[1]*{{a2}}[j+6]  + cf_c[1]*{{a1}}[j+6];
+    t_c[2] = {{a2}}[j+8]  + cf_r[2]*{{a2}}[j+10] + cf_c[2]*{{a1}}[j+10];
+    t_c[3] = {{a2}}[j+12] + cf_r[3]*{{a2}}[j+14] + cf_c[3]*{{a1}}[j+14];
+    t_c[4] = {{a2}}[j]    + cf_r[4]*{{a2}}[j+2]  + cf_c[4]*{{a1}}[j+2];
+    t_c[5] = {{a2}}[j+4]  + cf_r[5]*{{a2}}[j+6]  + cf_c[5]*{{a1}}[j+6];
+    t_c[6] = {{a2}}[j+8]  + cf_r[6]*{{a2}}[j+10] + cf_c[6]*{{a1}}[j+10];
+    t_c[7] = {{a2}}[j+12] + cf_r[7]*{{a2}}[j+14] + cf_c[7]*{{a1}}[j+14];
+
+    {{a1}}[j]    = t_r[0];
+    {{a1}}[j+2]  = t_r[1];
+    {{a1}}[j+4]  = t_r[2];
+    {{a1}}[j+6]  = t_r[3];
+    {{a1}}[j+8]  = t_r[4];
+    {{a1}}[j+10] = t_r[5];
+    {{a1}}[j+12] = t_r[6];
+    {{a1}}[j+14] = t_r[7];
+
+    {{a2}}[j]    = t_c[0];
+    {{a2}}[j+2]  = t_c[1];
+    {{a2}}[j+4]  = t_c[2];
+    {{a2}}[j+6]  = t_c[3];
+    {{a2}}[j+8]  = t_c[4];
+    {{a2}}[j+10] = t_c[5];
+    {{a2}}[j+12] = t_c[6];
+    {{a2}}[j+14] = t_c[7];
+
+    {{sync_fn}}
+
+""")
+
+
+# FFT8, 32 workers, fast axis.
+fft8_gs32_fa_tpl = jinja2.Template("""
+    cf_r[0] =  1.0{{real_type[0]}};
+    cf_r[1] =  7.07106781e-01{{real_type[0]}};
+    cf_r[2] =  0.0{{real_type[0]}};
+    cf_r[3] =  -7.07106781e-01{{real_type[0]}};
+    cf_r[4] =  -1.0{{real_type[0]}};
+    cf_r[5] =  -7.07106781e-01{{real_type[0]}};
+    cf_r[6] =  0.0{{real_type[0]}};
+    cf_r[7] =  7.07106781e-01{{real_type[0]}};
+
+    cf_c[0] =  0.0{{real_type[0]}};
+    cf_c[1] = -7.07106781e-01{{real_type[0]}};
+    cf_c[2] = -1.0{{real_type[0]}};
+    cf_c[3] = -7.07106781e-01{{real_type[0]}};
+    cf_c[4] =  0.0{{real_type[0]}};
+    cf_c[5] =  7.07106781e-01{{real_type[0]}};
+    cf_c[6] =  1.0{{real_type[0]}};
+    cf_c[7] =  7.07106781e-01{{real_type[0]}};
+
+    j = r_off+wn;
+    t_r[0] = {{a1}}[j]    + cf_r[0]*{{a1}}[j+2]  - cf_c[0]*{{a2}}[j+2];
+    t_r[1] = {{a1}}[j+4]  + cf_r[1]*{{a1}}[j+6]  - cf_c[1]*{{a2}}[j+6];
+    t_r[2] = {{a1}}[j+8]  + cf_r[2]*{{a1}}[j+10] - cf_c[2]*{{a2}}[j+10];
+    t_r[3] = {{a1}}[j+12] + cf_r[3]*{{a1}}[j+14] - cf_c[3]*{{a2}}[j+14];
+    t_r[4] = {{a1}}[j]    + cf_r[4]*{{a1}}[j+2]  - cf_c[4]*{{a2}}[j+2];
+    t_r[5] = {{a1}}[j+4]  + cf_r[5]*{{a1}}[j+6]  - cf_c[5]*{{a2}}[j+6];
+    t_r[6] = {{a1}}[j+8]  + cf_r[6]*{{a1}}[j+10] - cf_c[6]*{{a2}}[j+10];
+    t_r[7] = {{a1}}[j+12] + cf_r[7]*{{a1}}[j+14] - cf_c[7]*{{a2}}[j+14];
+
+    t_c[0] = {{a2}}[j]    + cf_r[0]*{{a2}}[j+2]  + cf_c[0]*{{a1}}[j+2]; 
+    t_c[1] = {{a2}}[j+4]  + cf_r[1]*{{a2}}[j+6]  + cf_c[1]*{{a1}}[j+6];
+    t_c[2] = {{a2}}[j+8]  + cf_r[2]*{{a2}}[j+10] + cf_c[2]*{{a1}}[j+10];
+    t_c[3] = {{a2}}[j+12] + cf_r[3]*{{a2}}[j+14] + cf_c[3]*{{a1}}[j+14];
+    t_c[4] = {{a2}}[j]    + cf_r[4]*{{a2}}[j+2]  + cf_c[4]*{{a1}}[j+2];
+    t_c[5] = {{a2}}[j+4]  + cf_r[5]*{{a2}}[j+6]  + cf_c[5]*{{a1}}[j+6];
+    t_c[6] = {{a2}}[j+8]  + cf_r[6]*{{a2}}[j+10] + cf_c[6]*{{a1}}[j+10];
+    t_c[7] = {{a2}}[j+12] + cf_r[7]*{{a2}}[j+14] + cf_c[7]*{{a1}}[j+14];
+
+    {{a1}}[j]    = t_r[0];
+    {{a1}}[j+2]  = t_r[1];
+    {{a1}}[j+4]  = t_r[2];
+    {{a1}}[j+6]  = t_r[3];
+    {{a1}}[j+8]  = t_r[4];
+    {{a1}}[j+10] = t_r[5];
+    {{a1}}[j+12] = t_r[6];
+    {{a1}}[j+14] = t_r[7];
+
+    {{a2}}[j]    = t_c[0];
+    {{a2}}[j+2]  = t_c[1];
+    {{a2}}[j+4]  = t_c[2];
+    {{a2}}[j+6]  = t_c[3];
+    {{a2}}[j+8]  = t_c[4];
+    {{a2}}[j+10] = t_c[5];
+    {{a2}}[j+12] = t_c[6];
+    {{a2}}[j+14] = t_c[7];
+
+    {{sync_fn}}
+""")
+
+
+# FFT8, 64 workers, fast axis.
+fft8_gs64_fa_tpl = jinja2.Template("""
+    cf_r[0] =  1.0{{real_type[0]}};
+    cf_r[1] =  7.07106781e-01{{real_type[0]}};
+    cf_r[2] =  0.0{{real_type[0]}};
+    cf_r[3] =  -7.07106781e-01{{real_type[0]}};
+    cf_r[4] =  -1.0{{real_type[0]}};
+    cf_r[5] =  -7.07106781e-01{{real_type[0]}};
+    cf_r[6] =  0.0{{real_type[0]}};
+    cf_r[7] =  7.07106781e-01{{real_type[0]}};
+
+    cf_c[0] =  0.0{{real_type[0]}};
+    cf_c[1] = -7.07106781e-01{{real_type[0]}};
+    cf_c[2] = -1.0{{real_type[0]}};
+    cf_c[3] = -7.07106781e-01{{real_type[0]}};
+    cf_c[4] =  0.0{{real_type[0]}};
+    cf_c[5] =  7.07106781e-01{{real_type[0]}};
+    cf_c[6] =  1.0{{real_type[0]}};
+    cf_c[7] =  7.07106781e-01{{real_type[0]}};
+ 
+    c_off = 4*(wn&1);
+    o_off = wn>>1;
+    j = r_off+o_off;
+
+    t_r[0] = {{a1}}[j]    + cf_r[c_off]  *{{a1}}[j+2]  - cf_c[c_off]  *{{a2}}[j+2];
+    t_r[1] = {{a1}}[j+4]  + cf_r[c_off+1]*{{a1}}[j+6]  - cf_c[c_off+1]*{{a2}}[j+6];
+    t_r[2] = {{a1}}[j+8]  + cf_r[c_off+2]*{{a1}}[j+10] - cf_c[c_off+2]*{{a2}}[j+10];
+    t_r[3] = {{a1}}[j+12] + cf_r[c_off+3]*{{a1}}[j+14] - cf_c[c_off+3]*{{a2}}[j+14];
+
+    t_c[0] = {{a2}}[j]    + cf_r[c_off]  *{{a2}}[j+2]  + cf_c[c_off]  *{{a1}}[j+2]; 
+    t_c[1] = {{a2}}[j+4]  + cf_r[c_off+1]*{{a2}}[j+6]  + cf_c[c_off+1]*{{a1}}[j+6];
+    t_c[2] = {{a2}}[j+8]  + cf_r[c_off+2]*{{a2}}[j+10] + cf_c[c_off+2]*{{a1}}[j+10];
+    t_c[3] = {{a2}}[j+12] + cf_r[c_off+3]*{{a2}}[j+14] + cf_c[c_off+3]*{{a1}}[j+14];
+
+    {{sync_fn}}
+
+    j = r_off + 2*c_off + o_off;
+    {{a1}}[j]    = t_r[0];
+    {{a1}}[j+2]  = t_r[1];
+    {{a1}}[j+4]  = t_r[2];
+    {{a1}}[j+6]  = t_r[3];
+
+    {{a2}}[j]    = t_c[0];
+    {{a2}}[j+2]  = t_c[1];
+    {{a2}}[j+4]  = t_c[2];
+    {{a2}}[j+6]  = t_c[3];
+
+    {{sync_fn}}
+""")
+
+
+# FFT8, 128 workers, fast axis.
+fft8_gs128_fa_tpl = jinja2.Template("""
+    cf_r[0] =  1.0{{real_type[0]}};
+    cf_r[1] =  7.07106781e-01{{real_type[0]}};
+    cf_r[2] =  0.0{{real_type[0]}};
+    cf_r[3] =  -7.07106781e-01{{real_type[0]}};
+    cf_r[4] =  -1.0{{real_type[0]}};
+    cf_r[5] =  -7.07106781e-01{{real_type[0]}};
+    cf_r[6] =  0.0{{real_type[0]}};
+    cf_r[7] =  7.07106781e-01{{real_type[0]}};
+
+    cf_c[0] =  0.0{{real_type[0]}};
+    cf_c[1] = -7.07106781e-01{{real_type[0]}};
+    cf_c[2] = -1.0{{real_type[0]}};
+    cf_c[3] = -7.07106781e-01{{real_type[0]}};
+    cf_c[4] =  0.0{{real_type[0]}};
+    cf_c[5] =  7.07106781e-01{{real_type[0]}};
+    cf_c[6] =  1.0{{real_type[0]}};
+    cf_c[7] =  7.07106781e-01{{real_type[0]}};
+ 
+    c_off = 2*(wn&3);
+    o_off = wn>>2;
+    j = r_off + o_off;
+    k = j + 8*(wn&1);
+
+    t_r[0] = {{a1}}[k]    + cf_r[c_off]  *{{a1}}[k+2]  - cf_c[c_off]  *{{a2}}[k+2];
+    t_r[1] = {{a1}}[k+4]  + cf_r[c_off+1]*{{a1}}[k+6]  - cf_c[c_off+1]*{{a2}}[k+6];
+
+    t_c[0] = {{a2}}[k]    + cf_r[c_off]  *{{a2}}[k+2]  + cf_c[c_off]  *{{a1}}[k+2]; 
+    t_c[1] = {{a2}}[k+4]  + cf_r[c_off+1]*{{a2}}[k+6]  + cf_c[c_off+1]*{{a1}}[k+6];
+
+    {{sync_fn}}
+
+    j = r_off + 2*c_off + o_off;
+    {{a1}}[j]    = t_r[0];
+    {{a1}}[j+2]  = t_r[1];
+
+    {{a2}}[j]    = t_c[0];
+    {{a2}}[j+2]  = t_c[1];
+
+    {{sync_fn}}
+
+""")
+
+
+# FFT8, 256 workers, fast axis.
+fft8_gs256_fa_tpl = jinja2.Template("""
+    cf_r[0] =  1.0{{real_type[0]}};
+    cf_r[1] =  7.07106781e-01{{real_type[0]}};
+    cf_r[2] =  0.0{{real_type[0]}};
+    cf_r[3] =  -7.07106781e-01{{real_type[0]}};
+    cf_r[4] =  -1.0{{real_type[0]}};
+    cf_r[5] =  -7.07106781e-01{{real_type[0]}};
+    cf_r[6] =  0.0{{real_type[0]}};
+    cf_r[7] =  7.07106781e-01{{real_type[0]}};
+
+    cf_c[0] =  0.0{{real_type[0]}};
+    cf_c[1] = -7.07106781e-01{{real_type[0]}};
+    cf_c[2] = -1.0{{real_type[0]}};
+    cf_c[3] = -7.07106781e-01{{real_type[0]}};
+    cf_c[4] =  0.0{{real_type[0]}};
+    cf_c[5] =  7.07106781e-01{{real_type[0]}};
+    cf_c[6] =  1.0{{real_type[0]}};
+    cf_c[7] =  7.07106781e-01{{real_type[0]}};
+ 
+    c_off = wn&7;
+    o_off = wn>>3;
+    j = r_off + o_off;
+    k = j + 4*(wn&3);
+
+    t_r[0] = {{a1}}[k]    + cf_r[c_off]  *{{a1}}[k+2]  - cf_c[c_off]  *{{a2}}[k+2];
+    t_c[0] = {{a2}}[k]    + cf_r[c_off]  *{{a2}}[k+2]  + cf_c[c_off]  *{{a1}}[k+2]; 
+
+    {{sync_fn}}
+
+    j = r_off + 2*c_off + o_off;
+    {{a1}}[j]    = t_r[0];
+    {{a2}}[j]    = t_c[0];
+
+    {{sync_fn}}
+
+""")
 
 
 
