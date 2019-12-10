@@ -12,6 +12,4 @@ rigorous tests.
 Tests were done using the `NCS/cuda/pyCUDANCS/profile.py` Python script.
 Speedup is relative to the clib version of NCS on the same computer.
 
-* Nvidia Tesla K20Xm - X speedup.
-* Intel Haswell-ULT Integrated Graphics Controller - X speedup.
-* Nvidia GeForce GT 1030 - X speedup.
+* Nvidia GeForce GTX 750 Ti - 26x speedup.
